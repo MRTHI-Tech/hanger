@@ -1,0 +1,128 @@
+{
+  "_provenance": {
+    "note": "Field shape taken from SerpApi's own published Google Lens example response (serpapi.com/google-lens-visual-matches-api), NOT from a live call \u2014 this build had no SERPAPI_KEY. The parser is built around these field names. When a live key is added, the first live response is logged with its top-level keys (see alternatives.ts, logShapeOnce) so any mismatch shows up immediately rather than silently returning nothing.",
+    "observedAt": "2026-08-04",
+    "engine": "google_lens",
+    "type": "visual_matches",
+    "thumbnails": "Thumbnail URLs replaced with inline sample images so mock mode renders without reaching the network. Field names and structure are unchanged."
+  },
+  "search_metadata": {
+    "id": "fixture",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_lens",
+    "type": "visual_matches",
+    "country": "gb"
+  },
+  "visual_matches": [
+    {
+      "position": 1,
+      "title": "Oxford Cotton Shirt - Blue | Uniqlo UK",
+      "link": "https://www.uniqlo.com/uk/en/products/E999999-000",
+      "source": "Uniqlo",
+      "source_icon": "https://example.invalid/icon1.png",
+      "price": {
+        "value": "\u00a319*",
+        "extracted_value": 19,
+        "currency": "\u00a3"
+      },
+      "in_stock": true,
+      "thumbnail": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODgiIGhlaWdodD0iMjUwIiB2aWV3Qm94PSIwIDAgMTg4IDI1MCI+PHJlY3Qgd2lkdGg9IjE4OCIgaGVpZ2h0PSIyNTAiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNOTQgNDQgbC0zNCAxMiBxLTE0IDYgLTE4IDIwIGwtNyAzMSAxOSA2IDMgLTE5IHY4NyBxMCA2IDYgNiBoNjIgcTYgMCA2IC02IHYtODcgbDMgMTkgMTkgLTYgLTcgLTMxIHEtNCAtMTQgLTE4IC0yMCB6IiBmaWxsPSIjNTY4MUZGIi8+PHRleHQgeD0iOTQiIHk9IjIyOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjODY4Yjk5Ij5zYW1wbGUgbGlzdGluZzwvdGV4dD48L3N2Zz4=",
+      "thumbnail_width": 251,
+      "thumbnail_height": 201,
+      "image": "https://example.invalid/uniqlo-oxford-large.jpg",
+      "image_width": 1170,
+      "image_height": 1560
+    },
+    {
+      "position": 2,
+      "title": "Slim Fit Oxford Shirt, Blue",
+      "link": "https://www.marksandspencer.com/oxford-shirt/p/fixture2",
+      "source": "Marks & Spencer",
+      "price": {
+        "value": "\u00a327.50*",
+        "extracted_value": 27.5,
+        "currency": "\u00a3"
+      },
+      "in_stock": true,
+      "thumbnail": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODgiIGhlaWdodD0iMjUwIiB2aWV3Qm94PSIwIDAgMTg4IDI1MCI+PHJlY3Qgd2lkdGg9IjE4OCIgaGVpZ2h0PSIyNTAiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNOTQgNDQgbC0zNCAxMiBxLTE0IDYgLTE4IDIwIGwtNyAzMSAxOSA2IDMgLTE5IHY4NyBxMCA2IDYgNiBoNjIgcTYgMCA2IC02IHYtODcgbDMgMTkgMTkgLTYgLTcgLTMxIHEtNCAtMTQgLTE4IC0yMCB6IiBmaWxsPSIjNkNEOUE4Ii8+PHRleHQgeD0iOTQiIHk9IjIyOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjODY4Yjk5Ij5zYW1wbGUgbGlzdGluZzwvdGV4dD48L3N2Zz4=",
+      "thumbnail_width": 187,
+      "thumbnail_height": 269,
+      "image": "https://example.invalid/ms-oxford-large.jpg",
+      "image_width": 900,
+      "image_height": 1200
+    },
+    {
+      "position": 3,
+      "title": "Oxford shirt",
+      "link": "https://example.com/p/1",
+      "source": "Example",
+      "price": {
+        "value": "\u00a339.99*",
+        "extracted_value": 39.99,
+        "currency": "\u00a3"
+      },
+      "in_stock": true,
+      "thumbnail": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODgiIGhlaWdodD0iMjUwIiB2aWV3Qm94PSIwIDAgMTg4IDI1MCI+PHJlY3Qgd2lkdGg9IjE4OCIgaGVpZ2h0PSIyNTAiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNOTQgNDQgbC0zNCAxMiBxLTE0IDYgLTE4IDIwIGwtNyAzMSAxOSA2IDMgLTE5IHY4NyBxMCA2IDYgNiBoNjIgcTYgMCA2IC02IHYtODcgbDMgMTkgMTkgLTYgLTcgLTMxIHEtNCAtMTQgLTE4IC0yMCB6IiBmaWxsPSIjRkZBMzQ3Ii8+PHRleHQgeD0iOTQiIHk9IjIyOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjODY4Yjk5Ij5zYW1wbGUgbGlzdGluZzwvdGV4dD48L3N2Zz4=",
+      "image": "https://example.invalid/same-retailer.jpg",
+      "image_width": 800,
+      "image_height": 1000
+    },
+    {
+      "position": 4,
+      "title": "Classic Oxford Shirt \u2014 Sky",
+      "link": "https://www.percivalclo.com/products/fixture4",
+      "source": "Percival",
+      "price": {
+        "value": "\u00a385*",
+        "extracted_value": 85,
+        "currency": "\u00a3"
+      },
+      "in_stock": true,
+      "thumbnail": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODgiIGhlaWdodD0iMjUwIiB2aWV3Qm94PSIwIDAgMTg4IDI1MCI+PHJlY3Qgd2lkdGg9IjE4OCIgaGVpZ2h0PSIyNTAiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNOTQgNDQgbC0zNCAxMiBxLTE0IDYgLTE4IDIwIGwtNyAzMSAxOSA2IDMgLTE5IHY4NyBxMCA2IDYgNiBoNjIgcTYgMCA2IC02IHYtODcgbDMgMTkgMTkgLTYgLTcgLTMxIHEtNCAtMTQgLTE4IC0yMCB6IiBmaWxsPSIjQjc4MEY2Ii8+PHRleHQgeD0iOTQiIHk9IjIyOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjODY4Yjk5Ij5zYW1wbGUgbGlzdGluZzwvdGV4dD48L3N2Zz4=",
+      "image": "https://example.invalid/percival-large.jpg",
+      "image_width": 1080,
+      "image_height": 1440
+    },
+    {
+      "position": 5,
+      "title": "Pinterest \u2014 shirt inspiration board",
+      "link": "https://www.pinterest.com/pin/fixture5",
+      "source": "Pinterest",
+      "thumbnail": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODgiIGhlaWdodD0iMjUwIiB2aWV3Qm94PSIwIDAgMTg4IDI1MCI+PHJlY3Qgd2lkdGg9IjE4OCIgaGVpZ2h0PSIyNTAiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNOTQgNDQgbC0zNCAxMiBxLTE0IDYgLTE4IDIwIGwtNyAzMSAxOSA2IDMgLTE5IHY4NyBxMCA2IDYgNiBoNjIgcTYgMCA2IC02IHYtODcgbDMgMTkgMTkgLTYgLTcgLTMxIHEtNCAtMTQgLTE4IC0yMCB6IiBmaWxsPSIjRkY3NTUzIi8+PHRleHQgeD0iOTQiIHk9IjIyOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjODY4Yjk5Ij5zYW1wbGUgbGlzdGluZzwvdGV4dD48L3N2Zz4="
+    },
+    {
+      "position": 6,
+      "title": "Slim Fit Oxford Shirt, Blue",
+      "link": "https://www.marksandspencer.com/oxford-shirt/p/fixture2?variant=2",
+      "source": "Marks & Spencer",
+      "price": {
+        "value": "\u00a327.50*",
+        "extracted_value": 27.5,
+        "currency": "\u00a3"
+      },
+      "in_stock": true,
+      "thumbnail": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODgiIGhlaWdodD0iMjUwIiB2aWV3Qm94PSIwIDAgMTg4IDI1MCI+PHJlY3Qgd2lkdGg9IjE4OCIgaGVpZ2h0PSIyNTAiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNOTQgNDQgbC0zNCAxMiBxLTE0IDYgLTE4IDIwIGwtNyAzMSAxOSA2IDMgLTE5IHY4NyBxMCA2IDYgNiBoNjIgcTYgMCA2IC02IHYtODcgbDMgMTkgMTkgLTYgLTcgLTMxIHEtNCAtMTQgLTE4IC0yMCB6IiBmaWxsPSIjNjBDRkQzIi8+PHRleHQgeD0iOTQiIHk9IjIyOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjODY4Yjk5Ij5zYW1wbGUgbGlzdGluZzwvdGV4dD48L3N2Zz4=",
+      "image": "https://example.invalid/ms-oxford-large-dupe.jpg",
+      "image_width": 900,
+      "image_height": 1200
+    },
+    {
+      "position": 7,
+      "title": "Blue Oxford Shirt (out of stock)",
+      "link": "https://www.allbirds.co.uk/products/fixture7",
+      "source": "Allbirds",
+      "price": {
+        "value": "\u00a322*",
+        "extracted_value": 22,
+        "currency": "\u00a3"
+      },
+      "in_stock": false,
+      "thumbnail": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODgiIGhlaWdodD0iMjUwIiB2aWV3Qm94PSIwIDAgMTg4IDI1MCI+PHJlY3Qgd2lkdGg9IjE4OCIgaGVpZ2h0PSIyNTAiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNOTQgNDQgbC0zNCAxMiBxLTE0IDYgLTE4IDIwIGwtNyAzMSAxOSA2IDMgLTE5IHY4NyBxMCA2IDYgNiBoNjIgcTYgMCA2IC02IHYtODcgbDMgMTkgMTkgLTYgLTcgLTMxIHEtNCAtMTQgLTE4IC0yMCB6IiBmaWxsPSIjYzlhMjI3Ii8+PHRleHQgeD0iOTQiIHk9IjIyOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBmaWxsPSIjODY4Yjk5Ij5zYW1wbGUgbGlzdGluZzwvdGV4dD48L3N2Zz4=",
+      "image": "https://example.invalid/allbirds-large.jpg",
+      "image_width": 300,
+      "image_height": 300
+    }
+  ]
+}

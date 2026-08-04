@@ -20,6 +20,7 @@ import {TryOn} from './screens/TryOn';
 import {Hanger} from './screens/Hanger';
 import {OutfitBuilder} from './screens/OutfitBuilder';
 import {Outfits} from './screens/Outfits';
+import {Alternatives} from './screens/Alternatives';
 import {ErrorNote} from './components/ErrorNote';
 import {onProductReady, takePendingProduct} from './bridge';
 
@@ -36,6 +37,7 @@ export function App() {
   const [tabId, setTabId] = useState<number | null>(null);
   const [building, setBuilding] = useState(false);
   const [openOutfit, setOpenOutfit] = useState<Outfit | null>(null);
+  const [alternativesFor, setAlternativesFor] = useState<Garment | null>(null);
   // Bumped whenever something is hung or an outfit finishes, so the list
   // screens reload without holding their own subscriptions.
   const [dataVersion, setDataVersion] = useState(0);
@@ -133,6 +135,19 @@ export function App() {
       person={person}
       onChangePhoto={() => setChangingPhoto(true)}
       nav={<Nav tab={tab} onChange={setTab} />}>
+      {alternativesFor ? (
+        <Alternatives
+          garment={alternativesFor}
+          person={person}
+          onBack={() => setAlternativesFor(null)}
+          onHung={() => {
+            setAlternativesFor(null);
+            setDataVersion((v) => v + 1);
+            setTab('hanger');
+          }}
+        />
+      ) : (
+        <>
       {tab === 'tryon' && (
         <TryOn
           product={product}
@@ -144,6 +159,7 @@ export function App() {
           }}
           onClearProduct={() => setProduct(null)}
           onOpenHanger={() => setTab('hanger')}
+          onFindAlternatives={setAlternativesFor}
         />
       )}
 
@@ -160,7 +176,7 @@ export function App() {
             setProduct(garmentAsProduct(garment));
             setTab('tryon');
           }}
-          onFindAlternatives={() => setTab('hanger')}
+          onFindAlternatives={setAlternativesFor}
         />
       )}
 
@@ -196,6 +212,8 @@ export function App() {
             onOpen={(outfit) => setOpenOutfit(outfit)}
           />
         ))}
+        </>
+      )}
     </Shell>
   );
 }

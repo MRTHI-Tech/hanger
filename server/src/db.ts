@@ -129,6 +129,19 @@ const MIGRATIONS: {name: string; sql: string}[] = [
       ALTER TABLE garment ADD COLUMN hung INTEGER DEFAULT 0;
     `,
   },
+  {
+    name: '005_alternative_images',
+    sql: `
+      -- Lens returns both a small thumbnail and the retailer's own full-size
+      -- image. The big one is what makes "try this on" work (§10.2), so keep
+      -- it and its dimensions.
+      ALTER TABLE alternative ADD COLUMN image_url TEXT;
+      ALTER TABLE alternative ADD COLUMN image_width INTEGER;
+      ALTER TABLE alternative ADD COLUMN image_height INTEGER;
+      ALTER TABLE alternative ADD COLUMN in_stock INTEGER;
+      ALTER TABLE alternative ADD COLUMN position INTEGER;
+    `,
+  },
 ];
 
 function migrate() {

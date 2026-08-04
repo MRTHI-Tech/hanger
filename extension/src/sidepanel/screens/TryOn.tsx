@@ -39,6 +39,7 @@ export function TryOn({
   onHung,
   onClearProduct,
   onOpenHanger,
+  onFindAlternatives,
 }: {
   product: ScrapedProduct | null;
   tabId: number | null;
@@ -46,6 +47,7 @@ export function TryOn({
   onHung: (garment: Garment) => void;
   onClearProduct: () => void;
   onOpenHanger: () => void;
+  onFindAlternatives: (garment: Garment) => void;
 }) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [category, setCategory] = useState<GarmentCategory>(
@@ -231,6 +233,9 @@ export function TryOn({
             setResultUrl(null);
           }}
           onOpenHanger={onOpenHanger}
+          onFindAlternatives={
+            garment ? () => onFindAlternatives(garment) : undefined
+          }
         />
       ) : phase === 'done' && !resultUrl ? (
         <Banner
@@ -350,6 +355,7 @@ function Result({
   onHang,
   onAgain,
   onOpenHanger,
+  onFindAlternatives,
 }: {
   resultUrl: string;
   beforeUrl: string;
@@ -359,6 +365,7 @@ function Result({
   onHang: () => void;
   onAgain: () => void;
   onOpenHanger: () => void;
+  onFindAlternatives?: () => void;
 }) {
   return (
     <VStack gap={3}>
@@ -375,6 +382,13 @@ function Result({
           <Button label="See Your Hanger" variant="primary" onClick={onOpenHanger} />
         ) : (
           <Button label="Hang it" variant="primary" onClick={onHang} />
+        )}
+        {onFindAlternatives && (
+          <Button
+            label="Find it cheaper"
+            variant="secondary"
+            onClick={onFindAlternatives}
+          />
         )}
         <Button label="Try a different photo" variant="ghost" onClick={onAgain} />
       </VStack>
