@@ -10,7 +10,10 @@ if (!root) throw new Error('Missing #root');
 
 createRoot(root).render(
   <StrictMode>
-    <Theme theme={butterTheme}>
+    {/* Light regardless of the OS setting: butter's light palette is the
+        signature look, and a shopper is judging colours against their own
+        photo — a dark panel shifts how the garment reads. */}
+    <Theme theme={butterTheme} mode="light">
       <App />
     </Theme>
   </StrictMode>,
