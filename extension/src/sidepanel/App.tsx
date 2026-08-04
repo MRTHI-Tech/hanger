@@ -1,89 +1,198 @@
-import {useEffect, useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Badge} from '@astryxdesign/core/Badge';
-import {Card} from '@astryxdesign/core/Card';
 import {Spinner} from '@astryxdesign/core/Spinner';
-import {Banner} from '@astryxdesign/core/Banner';
-import {Button} from '@astryxdesign/core/Button';
-import {api, HangerError} from './api';
-import type {Health} from '../shared/types';
+import {Card} from '@astryxdesign/core/Card';
+import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
+import {api, mediaUrl} from './api';
+import type {Health, Person} from '../shared/types';
+import {Onboarding} from './screens/Onboarding';
+import {ErrorNote} from './components/ErrorNote';
+
+type Tab = 'tryon' | 'hanger' | 'outfits';
 
 export function App() {
   const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [person, setPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
+  const [tab, setTab] = useState<Tab>('tryon');
+  const [changingPhoto, setChangingPhoto] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setHealth(await api.health());
+      const [h, p] = await Promise.all([
+        api.health(),
+        api.getPerson().catch(() => null),
+      ]);
+      setHealth(h);
+      setPerson(p);
     } catch (e) {
-      setError(
-        e instanceof HangerError ? e.message : 'Something went wrong.',
-      );
+      setError(e);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
-  return (
-    <VStack height="100%" gap={0}>
-      <AppHeader health={health} />
-      <VStack padding={4} gap={4} isScrollable>
-        {loading && <Spinner label="Checking the server" />}
+  if (loading) {
+    return (
+      <Shell health={health}>
+        <VStack padding={4} gap={3} vAlign="center" hAlign="center" height="60%">
+          <Spinner label="Opening Your Hanger" />
+        </VStack>
+      </Shell>
+    );
+  }
 
-        {error && (
-          <Banner
-            status="error"
-            title="No server"
-            description={error}
-            endContent={
-              <Button label="Try again" variant="secondary" onClick={load} />
-            }
+  if (error) {
+    return (
+      <Shell health={health}>
+        <VStack padding={4} gap={3}>
+          <ErrorNote
+            error={error}
+            title="Hanger isn't running"
+            actionLabel="Try again"
+            onAction={load}
           />
-        )}
-
-        {health && (
-          <Card>
+          <Card variant="muted">
             <VStack gap={2}>
-              <Heading level={2}>Server is up</Heading>
+              <Text type="label">Start the server</Text>
               <Text type="supporting">
-                {health.mockMode
-                  ? 'Running on sample data. Nothing is charged.'
-                  : 'Connected to the live try-on API.'}
+                In the project folder, run npm run dev. Hanger talks to it on
+                localhost:8787.
               </Text>
-              <HStack gap={2} vAlign="center">
-                <Text type="supporting">
-                  {health.unitsSpent} of {health.unitBudget} units used
-                </Text>
-              </HStack>
             </VStack>
           </Card>
-        )}
-      </VStack>
+        </VStack>
+      </Shell>
+    );
+  }
+
+  if (!person || changingPhoto) {
+    return (
+      <Shell health={health}>
+        <Onboarding
+          existingPhotoUrl={
+            changingPhoto && person ? mediaUrl(person.photoUrl) : undefined
+          }
+          onCancel={changingPhoto ? () => setChangingPhoto(false) : undefined}
+          onReady={async () => {
+            setChangingPhoto(false);
+            await load();
+          }}
+        />
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell
+      health={health}
+      person={person}
+      onChangePhoto={() => setChangingPhoto(true)}
+      nav={<Nav tab={tab} onChange={setTab} />}>
+      {tab === 'tryon' && <ReadyPlaceholder />}
+      {tab === 'hanger' && <ReadyPlaceholder />}
+      {tab === 'outfits' && <ReadyPlaceholder />}
+    </Shell>
+  );
+}
+
+/** Replaced by the real screens in the phases that build them. */
+function ReadyPlaceholder() {
+  return (
+    <VStack padding={4} gap={3}>
+      <Heading level={2}>You're set up</Heading>
+      <Text type="supporting">
+        Open a product page in any shop and Hanger will offer to try it on.
+      </Text>
     </VStack>
   );
 }
 
-function AppHeader({health}: {health: Health | null}) {
+function Shell({
+  children,
+  health,
+  person,
+  onChangePhoto,
+  nav,
+}: {
+  children: React.ReactNode;
+  health: Health | null;
+  person?: Person | null;
+  onChangePhoto?: () => void;
+  nav?: React.ReactNode;
+}) {
+  return (
+    <VStack height="100%" gap={0}>
+      <HStack
+        paddingInline={4}
+        paddingBlock={3}
+        vAlign="center"
+        justify="between">
+        <Heading level={1} display="inline">
+          <Text type="display-3">Hanger</Text>
+        </Heading>
+        <HStack gap={2} vAlign="center">
+          {health?.mockMode && <Badge variant="neutral" label="Sample data" />}
+          {person && onChangePhoto && (
+            <button
+              type="button"
+              onClick={onChangePhoto}
+              title="Change your photo"
+              aria-label="Change your photo"
+              className="h-8 w-8 overflow-hidden rounded-full"
+              style={{
+                border: '1px solid var(--color-border-emphasized)',
+                backgroundColor: 'var(--color-background-muted)',
+                cursor: 'pointer',
+                padding: 0,
+              }}>
+              <img
+                src={mediaUrl(person.photoUrl)}
+                alt=""
+                className="h-full w-full"
+                style={{objectFit: 'cover', objectPosition: 'top'}}
+              />
+            </button>
+          )}
+        </HStack>
+      </HStack>
+
+      <VStack height="100%" gap={0} isScrollable>
+        {children}
+      </VStack>
+
+      {nav}
+    </VStack>
+  );
+}
+
+function Nav({tab, onChange}: {tab: Tab; onChange: (t: Tab) => void}) {
   return (
     <HStack
-      paddingInline={4}
+      paddingInline={3}
       paddingBlock={3}
-      vAlign="center"
-      justify="between">
-      <Heading level={1} display="inline">
-        <Text type="display-3">Hanger</Text>
-      </Heading>
-      {health?.mockMode && <Badge variant="neutral" label="Sample data" />}
+      justify="center">
+      <SegmentedControl
+        label="Sections"
+        value={tab}
+        onChange={(v) => onChange(v as Tab)}
+        layout="fill"
+        size="md">
+        <SegmentedControlItem value="tryon" label="Try on" />
+        <SegmentedControlItem value="hanger" label="Your Hanger" />
+        <SegmentedControlItem value="outfits" label="Outfits" />
+      </SegmentedControl>
     </HStack>
   );
 }

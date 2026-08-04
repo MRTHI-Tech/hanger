@@ -54,6 +54,11 @@ const MAP: Record<string, {message: string; hint?: string; status?: ContentfulSt
     hint: 'Pick another photo',
     status: 400,
   },
+  image_too_large: {
+    message: "That image is bigger than we can use — keep the longest side under 4096 pixels.",
+    hint: 'Pick another photo',
+    status: 400,
+  },
   error_no_face: {
     message: "We couldn't find a face in your photo.",
     hint: 'Replace your photo',
