@@ -50,6 +50,7 @@ export interface GarmentRow {
   source_image_url: string | null;
   youcam_file_id: string | null;
   file_id_at: number | null;
+  hung: number;
   saved_at: number;
 }
 

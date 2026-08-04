@@ -8,9 +8,11 @@ import {Spinner} from '@astryxdesign/core/Spinner';
 import {Card} from '@astryxdesign/core/Card';
 import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
 import {api, mediaUrl} from './api';
-import type {Health, Person} from '../shared/types';
+import type {Health, Person, ScrapedProduct} from '../shared/types';
 import {Onboarding} from './screens/Onboarding';
+import {TryOn} from './screens/TryOn';
 import {ErrorNote} from './components/ErrorNote';
+import {onProductReady, takePendingProduct} from './bridge';
 
 type Tab = 'tryon' | 'hanger' | 'outfits';
 
@@ -21,6 +23,23 @@ export function App() {
   const [error, setError] = useState<unknown>(null);
   const [tab, setTab] = useState<Tab>('tryon');
   const [changingPhoto, setChangingPhoto] = useState(false);
+  const [product, setProduct] = useState<ScrapedProduct | null>(null);
+  const [tabId, setTabId] = useState<number | null>(null);
+
+  const drainProduct = useCallback(async () => {
+    const handoff = await takePendingProduct();
+    if (handoff.product) {
+      setProduct(handoff.product);
+      setTabId(handoff.tabId);
+      setTab('tryon');
+    }
+  }, []);
+
+  useEffect(() => {
+    void drainProduct();
+    // The badge can be clicked again while the panel is already open.
+    return onProductReady(() => void drainProduct());
+  }, [drainProduct]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,7 +119,16 @@ export function App() {
       person={person}
       onChangePhoto={() => setChangingPhoto(true)}
       nav={<Nav tab={tab} onChange={setTab} />}>
-      {tab === 'tryon' && <ReadyPlaceholder />}
+      {tab === 'tryon' && (
+        <TryOn
+          product={product}
+          tabId={tabId}
+          person={person}
+          onHung={() => setTab('hanger')}
+          onClearProduct={() => setProduct(null)}
+          onOpenHanger={() => setTab('hanger')}
+        />
+      )}
       {tab === 'hanger' && <ReadyPlaceholder />}
       {tab === 'outfits' && <ReadyPlaceholder />}
     </Shell>
@@ -111,10 +139,8 @@ export function App() {
 function ReadyPlaceholder() {
   return (
     <VStack padding={4} gap={3}>
-      <Heading level={2}>You're set up</Heading>
-      <Text type="supporting">
-        Open a product page in any shop and Hanger will offer to try it on.
-      </Text>
+      <Heading level={2}>Coming next</Heading>
+      <Text type="supporting">This section lands in the next phase.</Text>
     </VStack>
   );
 }

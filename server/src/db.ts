@@ -120,6 +120,15 @@ const MIGRATIONS: {name: string; sql: string}[] = [
       ALTER TABLE outfit_item ADD COLUMN skipped INTEGER DEFAULT 0;
     `,
   },
+  {
+    name: '004_hung_flag',
+    sql: `
+      -- Trying something on has to create a garment row (the API needs an id
+      -- for it), but Your Hanger should only hold what the person chose to
+      -- keep. "Hang it" sets this.
+      ALTER TABLE garment ADD COLUMN hung INTEGER DEFAULT 0;
+    `,
+  },
 ];
 
 function migrate() {

@@ -89,6 +89,10 @@ export const api = {
     return request<Garment>('/garments', {method: 'POST', body: form});
   },
 
+  /** "Hang it" — keep this garment in Your Hanger. */
+  hangGarment: (id: string) =>
+    request<Garment>(`/garments/${id}/hang`, {method: 'POST'}),
+
   deleteGarment: (id: string) =>
     request<void>(`/garments/${id}`, {method: 'DELETE'}),
 

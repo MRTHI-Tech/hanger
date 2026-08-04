@@ -10,3 +10,4 @@ server/.env
 # Generated at runtime
 server/data/
 server/storage/
+dist-harness/

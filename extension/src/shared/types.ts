@@ -89,6 +89,8 @@ export interface Garment {
   category: GarmentCategory;
   imageUrl: string;
   sourceImageUrl: string | null;
+  /** True once the person chose to keep it in Your Hanger. */
+  hung: boolean;
   savedAt: number;
 }
 
