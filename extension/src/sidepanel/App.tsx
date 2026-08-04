@@ -267,7 +267,9 @@ function Shell({
         vAlign="center"
         justify="between">
         <Heading level={1} display="inline">
-          <Text type="display-3">Hanger</Text>
+          <Text type="display-3" color="accent">
+            Hanger
+          </Text>
         </Heading>
         <HStack gap={2} vAlign="center">
           {health?.mockMode && <Badge variant="neutral" label="Sample data" />}

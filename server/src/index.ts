@@ -1,3 +1,5 @@
+import {existsSync, watch} from 'node:fs';
+import {resolve} from 'node:path';
 import {serve} from '@hono/node-server';
 import {Hono} from 'hono';
 import {cors} from 'hono/cors';
@@ -75,4 +77,30 @@ serve({fetch: app.fetch, port: env.PORT}, (info) => {
   );
   const {unitsSpent, unitBudget} = budgetSnapshot();
   console.log(`[hanger] units: ${unitsSpent}/${unitBudget}`);
+  watchEnvFile();
 });
+
+/**
+ * The dev watcher only reloads on source changes, so editing .env does nothing
+ * until the server is restarted — and the symptom is confusing: the panel keeps
+ * saying "Sample data" long after MOCK_MODE was set to false. Say so out loud.
+ */
+function watchEnvFile() {
+  const envPath = resolve(process.cwd(), '.env');
+  if (!existsSync(envPath)) return;
+  try {
+    let warned = false;
+    watch(envPath, () => {
+      if (warned) return;
+      warned = true;
+      console.warn(
+        '\n[hanger] ⚠ server/.env changed — restart the server for it to take effect.\n',
+      );
+      setTimeout(() => {
+        warned = false;
+      }, 2000);
+    });
+  } catch {
+    /* watching .env is a convenience, never a requirement */
+  }
+}

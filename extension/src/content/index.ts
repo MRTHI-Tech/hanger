@@ -76,13 +76,25 @@ function injectBadge() {
       await chrome.runtime.sendMessage({type: 'HANGER_OPEN_PANEL', product});
       if (label) label.textContent = 'Open in Hanger';
     } catch (error) {
+      // Reloading the extension orphans every content script already running
+      // in an open tab: this one's chrome.* handles are now dead and no amount
+      // of retrying will revive them. Only a page reload will.
+      if (isContextInvalidated(error)) {
+        button.innerHTML = `${hangerIcon()}<span>Reload the page to use Hanger</span>`;
+        button.setAttribute('disabled', 'true');
+        button.title = 'Hanger was updated. Refresh this tab.';
+        stopWatching();
+        return;
+      }
       console.warn('[hanger] could not read this page', error);
       if (label) label.textContent = 'Try again';
     } finally {
-      setTimeout(() => {
-        button.removeAttribute('disabled');
-        if (label) label.textContent = original;
-      }, 2500);
+      if (!button.title) {
+        setTimeout(() => {
+          button.removeAttribute('disabled');
+          if (label) label.textContent = original;
+        }, 2500);
+      }
     }
   });
 
@@ -105,16 +117,43 @@ function evaluate() {
   else removeBadge();
 }
 
+/**
+ * True when this content script has been orphaned by an extension reload.
+ * Every chrome.* call from here on throws, so the only cure is a page reload.
+ */
+function isContextInvalidated(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Extension context invalidated') ||
+    message.includes('context invalidated') ||
+    !chrome.runtime?.id
+  );
+}
+
+let navigationTimer: number | null = null;
+
+function stopWatching() {
+  if (navigationTimer !== null) {
+    clearInterval(navigationTimer);
+    navigationTimer = null;
+  }
+}
+
 /** Shops are single-page apps; the badge has to follow navigation. */
 function watchForNavigation() {
   const check = () => {
+    // An orphaned script would otherwise keep polling forever in a dead tab.
+    if (!chrome.runtime?.id) {
+      stopWatching();
+      return;
+    }
     if (location.href === lastUrl) return;
     lastUrl = location.href;
     removeBadge();
     setTimeout(evaluate, 600);
   };
   window.addEventListener('popstate', check);
-  setInterval(check, 1000);
+  navigationTimer = window.setInterval(check, 1000);
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
