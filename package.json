@@ -1,0 +1,29 @@
+{
+  "name": "hanger",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "extension"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:server dev:extension",
+    "dev:server": "npm run dev --workspace server",
+    "dev:extension": "npm run dev --workspace extension",
+    "build": "npm run build --workspace extension",
+    "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace extension"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.10.0": true,
+    "esbuild@0.28.1": true,
+    "esbuild@0.25.12": true,
+    "@astryxdesign/core@0.2.0": true
+  }
+}

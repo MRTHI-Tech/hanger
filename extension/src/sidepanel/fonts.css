@@ -1,0 +1,20 @@
+/*
+ * The two families the butter theme asks for, bundled locally. The panel must
+ * never call out to a font CDN — an unpacked extension has no network promises.
+ * Outfit ships as a variable font, so one file covers 100-900.
+ */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/outfit.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Sarina';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/sarina.woff2') format('woff2');
+}

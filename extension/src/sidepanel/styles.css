@@ -1,0 +1,35 @@
+/*
+ * Layer order per the Astryx Tailwind bridge: reset, then Astryx component
+ * base styles, then the theme tokens, then Tailwind utilities on top.
+ * The butter theme itself is injected at runtime by <Theme theme={butterTheme}>.
+ */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/core/tailwind-theme.css';
+@import 'tailwindcss/utilities.css' layer(utilities);
+@import './fonts.css';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-background-body);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-body);
+  /* The side panel is 320-480px. Never scroll sideways. */
+  overflow-x: hidden;
+}
+
+/* Consistent, quiet scrollbars inside the panel. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-emphasized) transparent;
+}
