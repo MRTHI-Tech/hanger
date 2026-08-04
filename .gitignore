@@ -11,3 +11,4 @@ server/.env
 server/data/
 server/storage/
 dist-harness/
+.scratch/

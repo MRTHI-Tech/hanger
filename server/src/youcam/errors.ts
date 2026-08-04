@@ -66,6 +66,9 @@ const MAP: Record<string, {message: string; hint?: string; status?: ContentfulSt
   },
   CreditInsufficiency: {
     message: "We're out of API credits for this demo.",
+    // "Try again" would be wrong advice here — nothing changes until the
+    // account has credit, so point at the thing that does still work.
+    hint: 'Switch to sample data',
     status: 402,
   },
   InvalidTaskId: {
@@ -94,11 +97,13 @@ const MAP: Record<string, {message: string; hint?: string; status?: ContentfulSt
     status: 400,
   },
   not_found: {
-    message: "We couldn't find that.",
+    message: "We couldn't find that — it may have been removed.",
+    hint: 'Go back to Your Hanger',
     status: 404,
   },
   invalid_request: {
     message: "That request didn't look right.",
+    hint: 'Try again',
     status: 400,
   },
   category_not_tryonable: {
