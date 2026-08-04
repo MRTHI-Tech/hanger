@@ -59,24 +59,56 @@ export interface FetchedImage {
  * §2.2 — the bytes have to be pulled from inside the page, so the panel asks
  * the content script rather than fetching the CDN URL itself.
  */
+type FetchReply = {ok: boolean; image?: FetchedImage; error?: string} | undefined;
+
 export async function fetchImageViaTab(
   tabId: number,
   url: string,
 ): Promise<FetchedImage> {
-  if (noChrome) throw new Error('Not running as an extension.');
-
-  const response = (await chrome.tabs.sendMessage(tabId, {
-    type: 'HANGER_FETCH_IMAGE',
-    url,
-  })) as {ok: boolean; image?: FetchedImage; error?: string} | undefined;
-
-  if (!response?.ok || !response.image) {
-    throw new Error(
-      response?.error ??
-        "We couldn't load that photo from the shop. Try picking a different one.",
+  if (noChrome) {
+    throw new HangerFetchError(
+      'Open the product page and use the Try this on button there.',
     );
   }
-  return response.image;
+
+  // First choice: the page itself, which carries the cookies and referrer the
+  // CDN expects (§2.2).
+  let pageError: string | undefined;
+  try {
+    const reply = (await chrome.tabs.sendMessage(tabId, {
+      type: 'HANGER_FETCH_IMAGE',
+      url,
+    })) as FetchReply;
+    if (reply?.ok && reply.image) return reply.image;
+    pageError = reply?.error;
+  } catch (error) {
+    pageError = error instanceof Error ? error.message : String(error);
+  }
+
+  // Second choice: the service worker. Under MV3 the page's fetch obeys the
+  // page's CORS policy, so a CDN on another origin without permissive headers
+  // blocks it there but not here.
+  console.warn(`[hanger] page fetch failed (${pageError}); trying the worker`);
+  try {
+    const reply = (await chrome.runtime.sendMessage({
+      type: 'HANGER_FETCH_IMAGE_FALLBACK',
+      url,
+    })) as FetchReply;
+    if (reply?.ok && reply.image) return reply.image;
+    console.warn(`[hanger] worker fetch failed too: ${reply?.error}`);
+  } catch (error) {
+    console.warn('[hanger] worker fetch threw', error);
+  }
+
+  // §13: a sentence and a way forward, never a raw "Failed to fetch".
+  throw new HangerFetchError(
+    "This shop won't let us read that photo. Try picking a different one from the strip.",
+  );
+}
+
+/** Carries a message that's already fit to show someone. */
+export class HangerFetchError extends Error {
+  hint = 'Pick another photo';
 }
 
 export function dataUrlToBlob(dataUrl: string): Blob {

@@ -17,11 +17,29 @@ export interface FetchedImage {
   byteLength: number;
 }
 
+/**
+ * Caveat that cost an afternoon: under MV3 a content-script fetch follows the
+ * *page's* CORS rules — it no longer inherits the extension's host permissions
+ * the way it did under MV2. A CDN on a different origin that doesn't send
+ * Access-Control-Allow-Origin therefore fails here with a bare "Failed to
+ * fetch". That's why this can't be the only path: the panel falls back to the
+ * service worker, which does have host permissions and is exempt from CORS.
+ *
+ * This one is still tried first because it's the only path that carries the
+ * page's cookies and referrer, which is the whole point of §2.2.
+ */
 export async function fetchImageBytes(url: string): Promise<FetchedImage> {
-  const response = await fetch(url, {
-    credentials: 'include',
-    referrer: location.href,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {credentials: 'include', referrer: location.href});
+  } catch (error) {
+    console.warn(
+      `[hanger] the page could not fetch ${url} (likely CORS); the service worker will try`,
+      error,
+    );
+    throw new Error('page_fetch_blocked');
+  }
+
   if (!response.ok) {
     throw new Error(`image fetch failed (${response.status})`);
   }
