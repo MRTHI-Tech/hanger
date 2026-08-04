@@ -153,7 +153,9 @@ export function humanize(code: string | undefined): HumanError {
     code: code ?? 'unknown',
     message: entry.message,
     hint: 'hint' in entry ? entry.hint : undefined,
-    status: entry.status ?? 502,
+    // A known code without an explicit status is a task that ran and couldn't
+    // produce a usable result — 422, not a bad gateway.
+    status: entry.status ?? 422,
   };
 }
 

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="768" viewBox="0 0 512 768" data-hanger-colour="#3d4b5c">
+  <rect width="512" height="768" fill="#f4f1e6"/>
+  <ellipse cx="256" cy="726" rx="96" ry="16" fill="#1d1c11" opacity="0.08"/>
+  <ellipse cx="256" cy="104" rx="42" ry="50" fill="#d9bda4"/>
+  <path d="M214 100 q0 -52 42 -52 q42 0 42 52 q-9 -25 -42 -25 q-33 0 -42 25 z" fill="#3a2c22"/>
+  <path d="M234 148 h44 v30 h-44 z" fill="#c9a98e"/>
+  <path d="M172 200 q-20 8 -26 30 l-12 46 28 8 4 -28 v130 q0 10 10 10 h92 q10 0 10 -10 v-186 z" fill="#e8e4d4"/>
+  <path d="M340 200 q20 8 26 30 l12 46 -28 8 -4 -28 v130 q0 10 -10 10 h-92 q-10 0 -10 -10 v-186 z" fill="#e8e4d4"/>
+  <path d="M186 390 h140 l12 74 -16 236 h-44 l-22 -196 -22 196 h-44 l-16 -236 z" fill="#3d4b5c"/>
+  <path d="M188 700 h54 v26 h-62 q-8 0 -6 -10 z" fill="#8d8778"/>
+  <path d="M270 700 h54 l14 16 q2 10 -6 10 h-62 z" fill="#8d8778"/>
+  <text x="256" y="748" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#605f52">Wide trousers — on model</text>
+</svg>

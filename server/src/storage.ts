@@ -45,8 +45,10 @@ export function hashBytes(bytes: Buffer): string {
 }
 
 export function extForContentType(contentType: string): string {
+  if (contentType.includes('svg')) return '.svg';
   if (contentType.includes('png')) return '.png';
   if (contentType.includes('webp')) return '.webp';
+  if (contentType.includes('avif')) return '.avif';
   return '.jpg';
 }
 
@@ -56,6 +58,10 @@ export function contentTypeForExt(name: string): string {
       return 'image/png';
     case '.webp':
       return 'image/webp';
+    case '.avif':
+      return 'image/avif';
+    case '.svg':
+      return 'image/svg+xml';
     default:
       return 'image/jpeg';
   }

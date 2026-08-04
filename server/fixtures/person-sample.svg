@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="768" height="1024" viewBox="0 0 768 1024" role="img" aria-label="Sample try-on result">
+<!--hanger-layers:{}-->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdfbe4"/>
+      <stop offset="1" stop-color="#f0edd4"/>
+    </linearGradient>
+    <linearGradient id="fabricTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8e4d4"/>
+      <stop offset="1" stop-color="#d6d2c2"/>
+    </linearGradient>
+    <linearGradient id="fabricBottom" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d6d1bd"/>
+      <stop offset="1" stop-color="#c4bfab"/>
+    </linearGradient>
+    
+  </defs>
+
+  <rect width="768" height="1024" fill="url(#bg)"/>
+  <ellipse cx="384" cy="952" rx="150" ry="26" fill="#1d1c11" opacity="0.07"/>
+
+  <!-- legs -->
+  <path d="M330 560 h48 v300 q0 18 -18 18 h-16 q-16 0 -16 -18 z" fill="#d9bda4"/>
+  <path d="M390 560 h48 v300 q0 18 -18 18 h-16 q-16 0 -16 -18 z" fill="#c9a98e"/>
+
+  <!-- bottom garment -->
+  <path d="M320 540 h128 l14 96 -18 200 h-42 l-18 -170 -18 170 h-42 l-18 -200 z" fill="url(#fabricBottom)"/>
+  
+
+  <!-- shoes -->
+  <path d="M312 862 h50 v34 q0 12 -14 12 h-50 q-10 0 -8 -12 z" fill="#8d8778"/>
+  <path d="M406 862 h50 l22 34 q2 12 -8 12 h-50 q-14 0 -14 -12 z" fill="#817b6c"/>
+
+  <!-- arms -->
+  <path d="M268 322 q-16 90 -8 190 l30 6 q6 -100 16 -178 z" fill="#d9bda4"/>
+  <path d="M500 322 q16 90 8 190 l-30 6 q-6 -100 -16 -178 z" fill="#c9a98e"/>
+
+  <!-- neck -->
+  <path d="M362 236 h44 v46 h-44 z" fill="#c9a98e"/>
+
+  <!-- torso garment -->
+  <path d="M384 268 l-72 26 q-30 12 -38 44 l-16 66 40 12 6 -40 v186 q0 12 12 12 h136 q12 0 12 -12 v-186 l6 40 40 -12 -16 -66 q-8 -32 -38 -44 z" fill="url(#fabricTop)"/>
+  
+
+  
+
+  <!-- head -->
+  <ellipse cx="384" cy="176" rx="66" ry="80" fill="#d9bda4"/>
+  <path d="M318 168 q0 -84 66 -84 q66 0 66 84 q-14 -40 -66 -40 q-52 0 -66 40 z" fill="#3a2c22"/>
+  <ellipse cx="360" cy="182" rx="5" ry="6" fill="#3a2c22"/>
+  <ellipse cx="408" cy="182" rx="5" ry="6" fill="#3a2c22"/>
+  <path d="M370 212 q14 10 28 0" stroke="#3a2c22" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  
+</svg>

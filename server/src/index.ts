@@ -11,6 +11,7 @@ import {garmentRoutes} from './routes/garments.js';
 import {tryonRoutes} from './routes/tryon.js';
 import {outfitRoutes} from './routes/outfits.js';
 import {alternativeRoutes} from './routes/alternatives.js';
+import {devRoutes} from './routes/dev.js';
 
 const app = new Hono();
 
@@ -52,6 +53,7 @@ app.route('/garments', garmentRoutes);
 app.route('/tryon', tryonRoutes);
 app.route('/outfits', outfitRoutes);
 app.route('/alternatives', alternativeRoutes);
+if (mockMode) app.route('/dev', devRoutes);
 
 app.notFound((c) =>
   c.json(

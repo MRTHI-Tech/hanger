@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="640" viewBox="0 0 512 640" data-hanger-colour="#5681FF">
+  <rect width="512" height="640" fill="#ffffff"/>
+  <path d="M256 120 l-92 34 q-38 16 -48 56 l-20 84 52 16 8 -52 v238 q0 16 16 16 h168 q16 0 16 -16 v-238 l8 52 52 -16 -20 -84 q-10 -40 -48 -56 z" fill="#5681FF"/>
+          <path d="M256 120 l-34 50 34 38 34 -38 z" fill="rgba(0,0,0,0.14)"/>
+  <text x="256" y="600" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" fill="#868b99">Oxford shirt</text>
+</svg>

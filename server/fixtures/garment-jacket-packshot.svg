@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="640" viewBox="0 0 512 640" data-hanger-colour="#8c5a3c">
+  <rect width="512" height="640" fill="#ffffff"/>
+  <path d="M256 118 l-96 36 q-40 16 -50 58 l-22 88 54 16 8 -54 v244 q0 16 16 16 h68 v-404 z" fill="#8c5a3c"/>
+            <path d="M256 118 l96 36 q40 16 50 58 l22 88 -54 16 -8 -54 v244 q0 16 -16 16 h-68 v-404 z" fill="#8c5a3c"/>
+            <path d="M244 118 h24 v404 h-24 z" fill="rgba(0,0,0,0.16)"/>
+  <text x="256" y="600" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" fill="#868b99">Boxy jacket</text>
+</svg>
