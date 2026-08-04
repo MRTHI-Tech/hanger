@@ -8,9 +8,18 @@ import {Spinner} from '@astryxdesign/core/Spinner';
 import {Card} from '@astryxdesign/core/Card';
 import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
 import {api, mediaUrl} from './api';
-import type {Health, Person, ScrapedProduct} from '../shared/types';
+import type {
+  Garment,
+  Health,
+  Outfit,
+  Person,
+  ScrapedProduct,
+} from '../shared/types';
 import {Onboarding} from './screens/Onboarding';
 import {TryOn} from './screens/TryOn';
+import {Hanger} from './screens/Hanger';
+import {OutfitBuilder} from './screens/OutfitBuilder';
+import {Outfits} from './screens/Outfits';
 import {ErrorNote} from './components/ErrorNote';
 import {onProductReady, takePendingProduct} from './bridge';
 
@@ -25,6 +34,11 @@ export function App() {
   const [changingPhoto, setChangingPhoto] = useState(false);
   const [product, setProduct] = useState<ScrapedProduct | null>(null);
   const [tabId, setTabId] = useState<number | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [openOutfit, setOpenOutfit] = useState<Outfit | null>(null);
+  // Bumped whenever something is hung or an outfit finishes, so the list
+  // screens reload without holding their own subscriptions.
+  const [dataVersion, setDataVersion] = useState(0);
 
   const drainProduct = useCallback(async () => {
     const handoff = await takePendingProduct();
@@ -124,25 +138,94 @@ export function App() {
           product={product}
           tabId={tabId}
           person={person}
-          onHung={() => setTab('hanger')}
+          onHung={() => {
+            setDataVersion((v) => v + 1);
+            setTab('hanger');
+          }}
           onClearProduct={() => setProduct(null)}
           onOpenHanger={() => setTab('hanger')}
         />
       )}
-      {tab === 'hanger' && <ReadyPlaceholder />}
-      {tab === 'outfits' && <ReadyPlaceholder />}
+
+      {tab === 'hanger' && (
+        <Hanger
+          refreshKey={dataVersion}
+          onBuildOutfit={() => {
+            setBuilding(true);
+            setTab('outfits');
+          }}
+          onTryOn={(garment: Garment) => {
+            // Re-trying something already hung goes through the same screen,
+            // with the garment's own photo as the only candidate.
+            setProduct(garmentAsProduct(garment));
+            setTab('tryon');
+          }}
+          onFindAlternatives={() => setTab('hanger')}
+        />
+      )}
+
+      {tab === 'outfits' &&
+        (building ? (
+          <OutfitBuilder
+            person={person}
+            onDone={() => {
+              setBuilding(false);
+              setDataVersion((v) => v + 1);
+            }}
+          />
+        ) : openOutfit ? (
+          <OutfitBuilder
+            person={person}
+            // Opening a saved look drops its pieces back on the canvas, so
+            // changing one slot is a two-tap job (and, thanks to the prefix
+            // cache, one call rather than three).
+            initial={Object.fromEntries(
+              openOutfit.items
+                .filter((item) => !item.skipped)
+                .map((item) => [item.slot, item.garment]),
+            )}
+            onDone={() => {
+              setOpenOutfit(null);
+              setDataVersion((v) => v + 1);
+            }}
+          />
+        ) : (
+          <Outfits
+            refreshKey={dataVersion}
+            onBuild={() => setBuilding(true)}
+            onOpen={(outfit) => setOpenOutfit(outfit)}
+          />
+        ))}
     </Shell>
   );
 }
 
-/** Replaced by the real screens in the phases that build them. */
-function ReadyPlaceholder() {
-  return (
-    <VStack padding={4} gap={3}>
-      <Heading level={2}>Coming next</Heading>
-      <Text type="supporting">This section lands in the next phase.</Text>
-    </VStack>
-  );
+/**
+ * A hung garment presented back to the try-on screen. Its stored image is our
+ * own copy, so there is nothing to fetch from a page and one candidate photo.
+ */
+function garmentAsProduct(garment: Garment): ScrapedProduct {
+  return {
+    title: garment.title,
+    brand: garment.brand,
+    retailer: garment.retailer,
+    productUrl: garment.productUrl,
+    price: garment.price,
+    category: garment.category,
+    images: [
+      {
+        url: mediaUrl(garment.imageUrl),
+        score: 10,
+        width: 0,
+        height: 0,
+        alt: garment.title,
+        onModel: true,
+        reasons: ['already in Your Hanger'],
+      },
+    ],
+    suggestedIndex: 0,
+    lowerBodyWarning: false,
+  };
 }
 
 function Shell({
