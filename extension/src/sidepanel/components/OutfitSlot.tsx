@@ -79,7 +79,10 @@ export function OutfitSlotRow({
         ) : (
           <span
             aria-hidden
-            style={{color: 'var(--color-text-disabled)', fontSize: 20}}>
+            style={{
+              color: 'var(--color-text-disabled)',
+              fontSize: 'var(--font-size-lg)',
+            }}>
             +
           </span>
         )}
@@ -89,16 +92,16 @@ export function OutfitSlotRow({
         <Text type="label">{SLOT_LABELS[slot]}</Text>
         {garment ? (
           <>
-            <Text type="supporting" size="3xs" maxLines={1}>
+            <Text type="supporting" maxLines={1}>
               {garment.title}
             </Text>
-            <Text type="supporting" size="3xs">
+            <Text type="supporting">
               {garment.retailer}
               {garment.price ? ` · ${formatPrice(garment.price)}` : ''}
             </Text>
           </>
         ) : (
-          <Text type="supporting" size="3xs">
+          <Text type="supporting">
             {isTarget ? 'Drop one here, or tap to choose' : 'Nothing yet'}
           </Text>
         )}

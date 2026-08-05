@@ -400,7 +400,7 @@ function Progress({
         <ProgressBar label={label} isLabelHidden isIndeterminate />
         {/* Keeping is a download and a database write; only a fitting is slow. */}
         {phase !== 'keeping' && (
-          <Text type="supporting" size="3xs">
+          <Text type="supporting">
             This usually takes 15 to 40 seconds.
           </Text>
         )}
@@ -461,10 +461,10 @@ function Kept({
             />
           </div>
           <VStack gap={0.5}>
-            <Text type="supporting" size="3xs" color="primary" maxLines={2}>
+            <Text type="supporting" color="primary" maxLines={2}>
               {garment.title}
             </Text>
-            <Text type="supporting" size="3xs">
+            <Text type="supporting">
               {CATEGORY_LABELS[garment.category]}
               {garment.price ? ` · ${formatPrice(garment.price)}` : ''}
             </Text>
@@ -515,7 +515,7 @@ function Result({
       <BeforeAfter beforeUrl={beforeUrl} afterUrl={resultUrl} alt={`You in ${title}`} />
 
       {cached && (
-        <Text type="supporting" size="3xs">
+        <Text type="supporting">
           You'd already tried this one on, so we reused it.
         </Text>
       )}

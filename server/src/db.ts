@@ -142,6 +142,32 @@ const MIGRATIONS: {name: string; sql: string}[] = [
       ALTER TABLE alternative ADD COLUMN position INTEGER;
     `,
   },
+  {
+    name: '006_outfit_video',
+    sql: `
+      -- A finished outfit can be turned into a short video to show someone
+      -- else. It's a second, optional task on top of an outfit that already
+      -- succeeded, so it carries its own status rather than reusing the
+      -- outfit's — a failed video must not make a good outfit look broken.
+      ALTER TABLE outfit ADD COLUMN video_status TEXT;
+      ALTER TABLE outfit ADD COLUMN video_path TEXT;
+      ALTER TABLE outfit ADD COLUMN video_error_code TEXT;
+    `,
+  },
+  {
+    name: '007_video_cache',
+    sql: `
+      -- Building the same outfit twice produces two outfit rows pointing at one
+      -- cached result image (§8.3) — and, before this, two separately paid
+      -- videos of byte-identical input. Keyed on the source image bytes per
+      -- §12.2, so the second row is free no matter which outfit asks.
+      CREATE TABLE video_cache (
+        cache_key   TEXT PRIMARY KEY,
+        result_path TEXT NOT NULL,
+        created_at  INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 function migrate() {

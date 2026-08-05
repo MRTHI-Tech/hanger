@@ -45,7 +45,12 @@ export const butterTheme = defineTheme({
   name: 'butter',
 
   typography: {
-    scale: {base: 14, ratio: 1.25},
+    // base 16 / ratio 1.2. The panel is read at laptop distance, so the small
+    // end of the scale is what matters: sm lands on 13px (the smallest size the
+    // UI is allowed to use) and body on 16px. Headings barely move against the
+    // old 14/1.25 scale — h1 27→28, h2 22→23 — so this lifts the fine print
+    // without inflating the panel.
+    scale: {base: 16, ratio: 1.2},
     body: {
       family: 'Outfit',
       fallbacks:
@@ -122,8 +127,8 @@ export const butterTheme = defineTheme({
     '--color-shadow': ['#1d1c111A', '#0000004D'],
     '--color-tint-hover': ['black', 'white'],
 
-    // Typography override
-    '--text-supporting-size': '12px',
+    // No typography overrides — `supporting` keeps its scale-derived
+    // --font-size-sm (13px), the floor for text in this UI.
 
     // Element sizes — slightly taller defaults so the new input padding
     // (--spacing-2 block) has room to breathe.

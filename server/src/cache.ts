@@ -82,9 +82,43 @@ export function setChainStepFileId(key: string, fileId: string): void {
   ).run(fileId, Date.now(), key);
 }
 
+/**
+ * A video is keyed on the bytes of the still it animates, not the outfit id.
+ * Two outfit rows built from the same pieces share one cached result image
+ * (§8.3), and animating it twice is the most expensive mistake we can make —
+ * video costs several units where a try-on costs one.
+ */
+export function videoCacheKey(sourceBytes: Buffer, durationSeconds: number): string {
+  return createHash('sha256')
+    .update(sourceBytes)
+    .update(`|video|${durationSeconds}`)
+    .digest('hex');
+}
+
+export function getVideo(key: string): string | null {
+  const row = db
+    .prepare('SELECT result_path FROM video_cache WHERE cache_key = ?')
+    .get(key) as {result_path: string} | undefined;
+  return row?.result_path ?? null;
+}
+
+export function putVideo(key: string, resultPath: string): void {
+  db.prepare(
+    `INSERT INTO video_cache (cache_key, result_path, created_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(cache_key) DO UPDATE SET result_path = excluded.result_path`,
+  ).run(key, resultPath, Date.now());
+}
+
 /** Both judges and we benefit from seeing these in the log (§12.2). */
-export function logCacheHit(kind: 'tryon' | 'chain', key: string): void {
-  console.log(`CACHE HIT ${kind} ${key.slice(0, 12)} (saved ~1 unit)`);
+export function logCacheHit(
+  kind: 'tryon' | 'chain' | 'video',
+  key: string,
+  units = 1,
+): void {
+  console.log(
+    `CACHE HIT ${kind} ${key.slice(0, 12)} (saved ~${units} unit${units === 1 ? '' : 's'})`,
+  );
 }
 
 /** YouCam file ids are worth reusing, but not past their useful life. */

@@ -51,7 +51,7 @@ export function ImageStrip({
 
       {images.length > 1 && (
         <VStack gap={1}>
-          <Text type="supporting" size="3xs">
+          <Text type="supporting">
             Which photo shows this best?
           </Text>
           <HStack gap={2} isScrollable>

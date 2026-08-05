@@ -99,14 +99,14 @@ export function Outfits({
                 />
               ) : (
                 <VStack vAlign="center" hAlign="center" height="100%">
-                  <Text type="supporting" size="3xs">
+                  <Text type="supporting">
                     {outfit.status === 'error' ? 'Did not finish' : 'Working…'}
                   </Text>
                 </VStack>
               )}
             </button>
             <HStack justify="between" vAlign="center" gap={1}>
-              <Text type="supporting" size="3xs" maxLines={1}>
+              <Text type="supporting" maxLines={1}>
                 {outfit.items.length} pieces
               </Text>
               {outfit.total && (

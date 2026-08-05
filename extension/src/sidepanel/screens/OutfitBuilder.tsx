@@ -9,6 +9,7 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Badge} from '@astryxdesign/core/Badge';
 import {Divider} from '@astryxdesign/core/Divider';
 import {ProgressBar} from '@astryxdesign/core/ProgressBar';
+import {Spinner} from '@astryxdesign/core/Spinner';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
 import {api, mediaUrl} from '../api';
 import {GarmentCard} from '../components/GarmentCard';
@@ -23,6 +24,7 @@ import {
   type Garment,
   type Outfit,
   type OutfitSlot,
+  type OutfitVideo,
   type Person,
 } from '../../shared/types';
 
@@ -107,14 +109,16 @@ export function OutfitBuilder({
         slot,
       }));
       const created = await api.createOutfit(items);
-      poll(created.outfitId);
+      // An outfit built from pieces we've already run comes back finished.
+      // Waiting a poll interval to discover that just looks like lag.
+      poll(created.outfitId, created.status !== 'running');
     } catch (e) {
       setError(e);
       setRunning(false);
     }
   }
 
-  function poll(id: string) {
+  function poll(id: string, immediate = false) {
     pollTimer.current = window.setTimeout(async () => {
       try {
         const next = await api.getOutfit(id);
@@ -128,7 +132,7 @@ export function OutfitBuilder({
         setError(e);
         setRunning(false);
       }
-    }, 1200);
+    }, immediate ? 0 : 1200);
   }
 
   if (picking) {
@@ -225,7 +229,7 @@ export function OutfitBuilder({
               value={outfit ? outfit.progress.step : 0}
               max={Math.max(1, outfit?.progress.of ?? chosen.length)}
             />
-            <Text type="supporting" size="3xs">
+            <Text type="supporting">
               Step {outfit?.progress.step ?? 0} of{' '}
               {outfit?.progress.of ?? chosen.length}. Each piece is fitted onto
               the last result, so this takes a moment.
@@ -343,10 +347,10 @@ function Finished({
         </Text>
       </VStack>
 
-      <BeforeAfter
+      <ShareVideo
+        outfit={outfit}
         beforeUrl={mediaUrl(person.photoUrl)}
         afterUrl={mediaUrl(outfit.resultUrl!)}
-        alt="Your outfit"
       />
 
       {outfit.partialNote && (
@@ -361,33 +365,11 @@ function Finished({
         <VStack gap={3}>
           <Text type="label">What you're wearing</Text>
           {worn.map((item) => (
-            <HStack key={item.slot} gap={2} vAlign="center" justify="between">
-              <VStack gap={0} width="100%">
-                <Text type="supporting" size="3xs" color="primary" maxLines={1}>
-                  {item.garment.title}
-                </Text>
-                <Text type="supporting" size="3xs">
-                  {SLOT_LABELS[item.slot]} · {item.garment.retailer}
-                </Text>
-              </VStack>
-              <HStack gap={2} vAlign="center">
-                {item.garment.price && (
-                  <Text type="supporting" size="3xs" color="primary">
-                    {formatPrice(item.garment.price)}
-                  </Text>
-                )}
-                <Button
-                  label="View"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.open(item.garment.productUrl, '_blank')}
-                />
-              </HStack>
-            </HStack>
+            <WornRow key={item.slot} item={item} />
           ))}
 
           {outfit.items.some((i) => i.skipped) && (
-            <Text type="supporting" size="3xs">
+            <Text type="supporting">
               Left out:{' '}
               {outfit.items
                 .filter((i) => i.skipped)
@@ -416,5 +398,242 @@ function Finished({
         <Button label="Done" variant="primary" onClick={onDone} />
       </VStack>
     </VStack>
+  );
+}
+
+/**
+ * A still is hard to send someone and ask "does this work?" — a few seconds of
+ * motion is the thing people actually forward. Built on demand rather than with
+ * every outfit: it's a second paid task, and most outfits never get shared.
+ */
+function ShareVideo({
+  outfit,
+  beforeUrl,
+  afterUrl,
+}: {
+  outfit: Outfit;
+  beforeUrl: string;
+  afterUrl: string;
+}) {
+  const [video, setVideo] = useState<OutfitVideo>(
+    outfit.video ?? {status: 'idle'},
+  );
+  /** Set by "Back to the photo" — the video still exists, we're just not on it. */
+  const [showStill, setShowStill] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const pollTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (pollTimer.current) window.clearTimeout(pollTimer.current);
+    },
+    [],
+  );
+
+  function poll() {
+    pollTimer.current = window.setTimeout(async () => {
+      try {
+        const next = await api.getOutfit(outfit.id);
+        const state = next.video ?? {status: 'idle' as const};
+        setVideo(state);
+        if (state.status === 'running' || state.status === 'pending') poll();
+      } catch (e) {
+        setError(e);
+      }
+    }, 1400);
+  }
+
+  async function make() {
+    setError(null);
+    setVideo({status: 'running'});
+    try {
+      const next = await api.createOutfitVideo(outfit.id);
+      setVideo(next.video ?? {status: 'running'});
+      poll();
+    } catch (e) {
+      setError(e);
+      setVideo({status: 'idle'});
+    }
+  }
+
+  const done = video.status === 'success' && Boolean(video.url);
+
+  // Once there's a video it takes over the image area — it *is* the outfit,
+  // moving, and stacking it under the still would ask which one to look at.
+  if (done && !showStill) {
+    return (
+      <VStack gap={2}>
+        <VideoPlayer url={mediaUrl(video.url!)} />
+        <HStack gap={2}>
+          <Button
+            label="Save the video"
+            variant="secondary"
+            size="sm"
+            onClick={() => window.open(mediaUrl(video.url!), '_blank')}
+          />
+          <Button
+            label="Back to the photo"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowStill(true)}
+          />
+        </HStack>
+      </VStack>
+    );
+  }
+
+  const busy = video.status === 'running' || video.status === 'pending';
+
+  return (
+    <VStack gap={2}>
+      <BeforeAfter
+        beforeUrl={beforeUrl}
+        afterUrl={afterUrl}
+        alt="Your outfit"
+        action={
+          busy ? (
+            <div
+              className="flex items-center gap-2 rounded-full px-3 py-2"
+              style={{
+                color: 'var(--color-on-dark)',
+                backgroundColor: 'var(--color-overlay)',
+                backdropFilter: 'blur(4px)',
+              }}>
+              <Spinner size="sm" />
+              <Text type="supporting" color="inherit">
+                Making your video
+              </Text>
+            </div>
+          ) : done ? (
+            // The video is already made and paid for — this returns to it
+            // rather than offering to build a second one.
+            <Button
+              label="Play the video"
+              variant="primary"
+              size="sm"
+              onClick={() => setShowStill(false)}
+            />
+          ) : (
+            <Button
+              label="Generate video"
+              variant="primary"
+              size="sm"
+              onClick={() => void make()}
+            />
+          )
+        }
+      />
+
+      {busy && <Text type="supporting">This takes about a minute.</Text>}
+
+      {error != null && (
+        <ErrorNote
+          error={error}
+          title="That video didn't work"
+          actionLabel="Try again"
+          onAction={() => void make()}
+        />
+      )}
+
+      {video.status === 'error' && (
+        // A recognised failure has copy worth reading ("we're out of credits").
+        // An unrecognised one only produces "something went wrong on our side",
+        // which is worse than saying the one thing that actually matters here.
+        <Banner
+          status="warning"
+          title="We couldn't make the video"
+          description={
+            video.code && video.code !== 'unknown' && video.message
+              ? video.message
+              : 'Your outfit is fine and still saved — only the video failed.'
+          }
+          endContent={
+            <Button label="Try again" variant="ghost" onClick={() => void make()} />
+          }
+        />
+      )}
+    </VStack>
+  );
+}
+
+/**
+ * Mock results are animated SVG and live ones are mp4, so the player follows
+ * the file rather than the mode — an <img> animates the SVG, <video> plays the
+ * real thing.
+ */
+function VideoPlayer({url}: {url: string}) {
+  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+
+  const frame = {
+    width: '100%',
+    borderRadius: 'var(--radius-container)',
+    backgroundColor: 'var(--color-background-muted)',
+    border: '1px solid var(--color-border)',
+  } as const;
+
+  if (!isVideo) {
+    return <img src={url} alt="Your outfit, moving" style={frame} />;
+  }
+
+  return (
+    <video
+      src={url}
+      style={frame}
+      controls
+      autoPlay
+      loop
+      muted
+      playsInline
+      aria-label="Your outfit, moving"
+    />
+  );
+}
+
+/**
+ * One line of the buy list. The panel is 320–480px and garment titles run to
+ * 60+ characters, so a title here could only ever be truncated — and it pushed
+ * the price and View off the edge entirely. The thumbnail says which piece this
+ * is faster than the text did, and nothing in the row can outgrow the panel.
+ *
+ * The title still carries the row for anyone not looking at it: it's the image
+ * alt and it names the View button.
+ */
+function WornRow({item}: {item: Outfit['items'][number]}) {
+  const {garment} = item;
+
+  return (
+    <HStack gap={3} vAlign="center">
+      <img
+        src={mediaUrl(garment.imageUrl)}
+        alt={`${SLOT_LABELS[item.slot]}: ${garment.title}`}
+        className="shrink-0 rounded-lg"
+        style={{
+          width: 44,
+          height: 44,
+          objectFit: 'cover',
+          backgroundColor: 'var(--color-background-muted)',
+          border: '1px solid var(--color-border)',
+        }}
+      />
+
+      {/* Grows to fill, so the prices line up in a column above the total. */}
+      <div style={{flex: 1, minWidth: 0, textAlign: 'right'}}>
+        {garment.price && (
+          <Text type="supporting" color="primary">
+            {formatPrice(garment.price)}
+          </Text>
+        )}
+      </div>
+
+      <div className="shrink-0">
+        <Button
+          label="View"
+          aria-label={`View ${garment.title} at ${garment.retailer}`}
+          variant="ghost"
+          size="sm"
+          onClick={() => window.open(garment.productUrl, '_blank')}
+        />
+      </div>
+    </HStack>
   );
 }

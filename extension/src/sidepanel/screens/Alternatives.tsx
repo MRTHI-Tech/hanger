@@ -134,7 +134,7 @@ export function Alternatives({
                 />
               )}
             {result.alternative.price && !result.alternative.priceComparable && (
-              <Text type="supporting" size="3xs">
+              <Text type="supporting">
                 priced in {result.alternative.price.currency}
               </Text>
             )}
@@ -147,7 +147,7 @@ export function Alternatives({
           alt={`You in ${result.alternative.title}`}
         />
 
-        {result.note && <Text type="supporting" size="3xs">{result.note}</Text>}
+        {result.note && <Text type="supporting">{result.note}</Text>}
 
         <VStack gap={2}>
           <Button
@@ -208,7 +208,7 @@ export function Alternatives({
             />
           )}
 
-          <Text type="supporting" size="3xs">
+          <Text type="supporting">
             {data.items.length} found, cheapest first
             {data.fromCache ? ' · from earlier today' : ''}
           </Text>
@@ -258,7 +258,7 @@ function Thumb({url}: {url: string | null}) {
           onError={() => setFailed(true)}
         />
       ) : (
-        <Text type="supporting" size="3xs">
+        <Text type="supporting">
           No photo
         </Text>
       )}
@@ -286,10 +286,10 @@ function AlternativeCard({
 
         <VStack gap={2} width="100%">
           <VStack gap={0.5}>
-            <Text type="supporting" size="3xs" color="primary" maxLines={2}>
+            <Text type="supporting" color="primary" maxLines={2}>
               {item.title}
             </Text>
-            <Text type="supporting" size="3xs">
+            <Text type="supporting">
               {item.source}
               {item.inStock === false ? ' · out of stock' : ''}
             </Text>
@@ -306,12 +306,12 @@ function AlternativeCard({
               />
             )}
             {saves != null && saves < 0 && (
-              <Text type="supporting" size="3xs">
+              <Text type="supporting">
                 {formatAmount(-saves, item.price?.currency ?? 'GBP')} more
               </Text>
             )}
             {item.price && !item.priceComparable && (
-              <Text type="supporting" size="3xs">
+              <Text type="supporting">
                 can't compare — priced in {item.price.currency}
               </Text>
             )}

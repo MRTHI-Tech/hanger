@@ -116,6 +116,10 @@ export const api = {
 
   getOutfit: (id: string) => request<Outfit>(`/outfits/${id}`),
 
+  /** Start the share video. Poll getOutfit and watch `video` for the result. */
+  createOutfitVideo: (id: string) =>
+    request<Outfit>(`/outfits/${id}/video`, {method: 'POST'}),
+
   listOutfits: () => request<Outfit[]>('/outfits'),
 
   deleteOutfit: (id: string) =>

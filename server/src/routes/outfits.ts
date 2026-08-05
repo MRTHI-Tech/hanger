@@ -2,9 +2,17 @@ import {randomUUID} from 'node:crypto';
 import {Hono} from 'hono';
 import {z} from 'zod';
 import {db} from '../db.js';
-import {mediaUrl} from '../storage.js';
-import {CodedError, humanize} from '../youcam/errors.js';
+import {
+  contentTypeForExt,
+  exists as storedFileExists,
+  mediaUrl,
+  read,
+} from '../storage.js';
+import {getVideo, logCacheHit, putVideo, videoCacheKey} from '../cache.js';
+import {CodedError, ERROR_CODES, humanize} from '../youcam/errors.js';
 import {outfitTotal, planChain, runChain} from '../youcam/chain.js';
+import {runVideo} from '../youcam/engine.js';
+import {VIDEO_DURATION_SECONDS, VIDEO_UNIT_COST} from '../youcam/client.js';
 import {garmentJson, getGarmentRow} from './garments.js';
 import {getPerson, requirePerson} from './person.js';
 import type {GarmentRow, OutfitSlot, PersonRow} from '../types.js';
@@ -36,6 +44,9 @@ interface OutfitRow {
   progress_of: number;
   progress_label: string | null;
   partial_note: string | null;
+  video_status: 'running' | 'success' | 'error' | null;
+  video_path: string | null;
+  video_error_code: string | null;
   created_at: number;
 }
 
@@ -78,6 +89,8 @@ function outfitJson(row: OutfitRow) {
 
   const person = getPerson();
   const human = row.status === 'error' ? humanize(row.error_code ?? undefined) : null;
+  const videoHuman =
+    row.video_status === 'error' ? humanize(row.video_error_code ?? undefined) : null;
 
   return {
     id: row.id,
@@ -98,6 +111,17 @@ function outfitJson(row: OutfitRow) {
     })),
     total: outfitTotal(items.filter((i) => !i.skipped).map((i) => ({garment: i.raw}))),
     partialNote: row.partial_note ?? undefined,
+    video: {
+      status: row.video_status ?? 'idle',
+      url: row.video_path ? mediaUrl(row.video_path) : undefined,
+      // The code rides along so the panel can tell "we know what went wrong"
+      // (say, out of credits) from "the service said something we don't
+      // recognise" — those deserve different copy, and §13 forbids showing the
+      // raw code either way.
+      code: videoHuman ? (row.video_error_code ?? 'unknown') : undefined,
+      message: videoHuman?.message,
+      hint: videoHuman?.hint,
+    },
     errorCode: human ? (row.error_code ?? 'unknown') : undefined,
     message: human?.message,
     hint: human?.hint,
@@ -125,6 +149,33 @@ outfitRoutes.post('/', async (c) => {
   }));
 
   const {items, ignored} = planChain(entries);
+
+  // The same pieces in the same slots are the same outfit. Building it twice
+  // produced a second row pointing at one cached image (§8.3) — free, but it
+  // filled the Outfits list with entries nobody can tell apart.
+  const existing = findIdenticalOutfit(person.id, items);
+  if (existing) {
+    // Reuse loses a name the person just typed, so carry it over if the
+    // original never had one.
+    if (body.data.name && !existing.name) {
+      db.prepare('UPDATE outfit SET name = ? WHERE id = ?').run(
+        body.data.name,
+        existing.id,
+      );
+    }
+    console.log(
+      `[hanger] outfit ${existing.id.slice(0, 8)}: same pieces as an existing one, reusing it`,
+    );
+    const row = getOutfitRow(existing.id);
+    return c.json({
+      outfitId: row.id,
+      id: row.id,
+      status: row.status,
+      ignoredSlots: ignored,
+      reused: true,
+    });
+  }
+
   const id = randomUUID();
 
   db.transaction(() => {
@@ -159,6 +210,46 @@ outfitRoutes.post('/', async (c) => {
 
   return c.json({outfitId: id, id, status: 'running', ignoredSlots: ignored});
 });
+
+/**
+ * An outfit's identity is the ordered list of (slot, garment) the chain will
+ * actually run — taken from `planChain`, not the raw request, so two requests
+ * that plan down to the same steps match even if they were phrased differently.
+ *
+ * Only finished and in-flight outfits count. A failed one must not be handed
+ * back as though it worked, and matching a running one is what stops an
+ * impatient double-tap from paying twice.
+ *
+ * Note `changeShoes` is not part of this: `outfit_item` has never stored it, so
+ * there is nothing to compare against. The panel doesn't send it, so today this
+ * is theoretical — it would need a column before it could be honoured.
+ */
+function findIdenticalOutfit(
+  personId: string,
+  items: ReturnType<typeof planChain>['items'],
+): {id: string; name: string | null} | null {
+  const wanted = items.map((i) => `${i.slot}:${i.garment.id}`).join('|');
+
+  const candidates = db
+    .prepare(
+      `SELECT id, name FROM outfit
+        WHERE person_id = ? AND status IN ('success', 'running')
+        ORDER BY created_at DESC`,
+    )
+    .all(personId) as {id: string; name: string | null}[];
+
+  for (const candidate of candidates) {
+    const rows = db
+      .prepare(
+        'SELECT slot, garment_id FROM outfit_item WHERE outfit_id = ? ORDER BY position',
+      )
+      .all(candidate.id) as {slot: OutfitSlot; garment_id: string}[];
+    const signature = rows.map((r) => `${r.slot}:${r.garment_id}`).join('|');
+    if (signature === wanted) return candidate;
+  }
+
+  return null;
+}
 
 async function execute(
   id: string,
@@ -238,6 +329,111 @@ function lowerFirst(text: string): string {
 }
 
 outfitRoutes.get('/:id', (c) => c.json(outfitJson(getOutfitRow(c.req.param('id')))));
+
+/**
+ * Turn a finished outfit into a short video worth sending someone. Starts the
+ * task and returns immediately; the panel keeps polling GET /outfits/:id and
+ * reads `video`, the same way it already watches the outfit itself.
+ */
+outfitRoutes.post('/:id/video', (c) => {
+  const id = c.req.param('id');
+  const row = getOutfitRow(id);
+
+  // Only a finished outfit has an image to animate.
+  if (row.status !== 'success' || !row.result_path) throw new CodedError('not_found');
+
+  // Already done, or already on its way — hand back what we have rather than
+  // paying for a second identical render.
+  if (row.video_status === 'success' && row.video_path) {
+    return c.json(outfitJson(row));
+  }
+  if (row.video_status === 'running') return c.json(outfitJson(row));
+
+  // Someone else may have animated this exact image already — a duplicate
+  // outfit, or this same one before an error. Resolved before any spend, and
+  // synchronously, so a cache hit comes back as a finished video rather than
+  // putting the panel through a spinner for nothing.
+  const cached = findCachedVideo(row.result_path);
+  if (cached) {
+    db.prepare(
+      "UPDATE outfit SET video_status = 'success', video_path = ?, video_error_code = NULL WHERE id = ?",
+    ).run(cached, id);
+    return c.json(outfitJson(getOutfitRow(id)));
+  }
+
+  db.prepare(
+    "UPDATE outfit SET video_status = 'running', video_error_code = NULL WHERE id = ?",
+  ).run(id);
+
+  void makeVideo(id, row.result_path);
+
+  return c.json(outfitJson(getOutfitRow(id)));
+});
+
+/**
+ * The cache proper is keyed on the source image bytes (§12.2). The sibling
+ * lookup behind it is a one-time rescue for videos made before that cache
+ * existed: those rows are already paid for, and re-rendering them because we
+ * have no index entry would be the exact waste this is here to stop. Anything
+ * it finds gets written into the cache, so it only ever runs once per image.
+ */
+function findCachedVideo(resultPath: string): string | null {
+  const bytes = read(resultPath);
+  const key = videoCacheKey(bytes, VIDEO_DURATION_SECONDS);
+
+  const hit = getVideo(key);
+  if (hit && storedFileExists(hit)) {
+    logCacheHit('video', key, VIDEO_UNIT_COST);
+    return hit;
+  }
+
+  const sibling = db
+    .prepare(
+      `SELECT video_path FROM outfit
+        WHERE result_path = ? AND video_status = 'success' AND video_path IS NOT NULL
+        LIMIT 1`,
+    )
+    .get(resultPath) as {video_path: string} | undefined;
+
+  if (sibling && storedFileExists(sibling.video_path)) {
+    putVideo(key, sibling.video_path);
+    logCacheHit('video', key, VIDEO_UNIT_COST);
+    return sibling.video_path;
+  }
+
+  return null;
+}
+
+async function makeVideo(id: string, resultPath: string): Promise<void> {
+  try {
+    const bytes = read(resultPath);
+    const {resultPath: videoPath} = await runVideo(
+      bytes,
+      contentTypeForExt(resultPath),
+    );
+    // Index it before anything else asks for the same image.
+    putVideo(videoCacheKey(bytes, VIDEO_DURATION_SECONDS), videoPath);
+    db.prepare(
+      "UPDATE outfit SET video_status = 'success', video_path = ? WHERE id = ?",
+    ).run(videoPath, id);
+    console.log(`[hanger] outfit ${id.slice(0, 8)} video done`);
+  } catch (error) {
+    const code = error instanceof CodedError ? error.code : 'upstream_error';
+    db.prepare(
+      "UPDATE outfit SET video_status = 'error', video_error_code = ? WHERE id = ?",
+    ).run(code, id);
+    console.error(`[hanger] outfit ${id.slice(0, 8)} video failed (${code})`);
+    if (!ERROR_CODES.includes(code)) {
+      // An unmapped code is the signature of the video payload being wrong
+      // (§11 — this endpoint has never been confirmed against a live call).
+      // The raw upstream body was already logged by readError, just above.
+      console.error(
+        `[hanger] "${code}" is not a code we map — the video request was probably rejected. ` +
+          'The youcam line logged above has the raw response.',
+      );
+    }
+  }
+}
 
 outfitRoutes.delete('/:id', (c) => {
   const id = c.req.param('id');

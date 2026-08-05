@@ -183,7 +183,7 @@ function FilterChip({
           : 'transparent',
         color: 'var(--color-text-primary)',
         font: 'inherit',
-        fontSize: 12,
+        fontSize: 'var(--font-size-sm)',
         cursor: 'pointer',
       }}>
       {label}

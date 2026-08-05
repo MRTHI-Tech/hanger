@@ -125,6 +125,57 @@ export async function mockRunCloth(
   return {bytes: Buffer.from(svg, 'utf8'), contentType: 'image/svg+xml'};
 }
 
+/**
+ * Mock stand-in for AI Image to Video. Returns an animated SVG rather than a
+ * real encoded video: mock output is a drawing on purpose (§12.1), and an SVG
+ * keeps that true while still moving. The panel picks its player from the file
+ * extension, so this plays in an <img> and a live .mp4 plays in a <video>.
+ */
+export async function mockRunVideo(
+  sourceBytes: Buffer,
+  onTick?: (elapsedMs: number) => void,
+): Promise<{bytes: Buffer; contentType: string}> {
+  const forced = takeForcedError();
+
+  const started = Date.now();
+  const step = Math.max(200, Math.min(2000, DELAY_MS / 4));
+  while (Date.now() - started < DELAY_MS) {
+    await sleep(Math.min(step, DELAY_MS - (Date.now() - started)));
+    onTick?.(Date.now() - started);
+  }
+
+  if (forced) throw new CodedError(forced);
+
+  const figure = renderFigure(
+    readLayers(sourceBytes),
+    'Sample video — no API credits used',
+  );
+
+  // A slow push-in and a sweep of light over the figure: enough motion to show
+  // what the real thing does, obviously not a real render.
+  const animation = `
+  <style>
+    .stage { animation: hanger-push 5s ease-in-out infinite alternate; transform-origin: 50% 45%; }
+    .sheen { animation: hanger-sheen 5s linear infinite; }
+    @keyframes hanger-push { from { transform: scale(1); } to { transform: scale(1.06); } }
+    @keyframes hanger-sheen { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+  </style>`;
+
+  const inner = figure
+    .replace(/^[\s\S]*?<svg[^>]*>/, '')
+    .replace(/<\/svg>\s*$/, '');
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="768" height="1024" viewBox="0 0 768 1024" role="img" aria-label="Sample outfit video">
+${animation}
+  <g class="stage">${inner}</g>
+  <g class="sheen">
+    <rect x="0" y="0" width="140" height="1024" fill="#ffffff" opacity="0.16" />
+  </g>
+</svg>`;
+
+  return {bytes: Buffer.from(svg, 'utf8'), contentType: 'image/svg+xml'};
+}
+
 /** Mock stand-in for AI Photo Enhance (§10.2). */
 export async function mockEnhance(bytes: Buffer): Promise<Buffer> {
   await sleep(Math.min(1500, DELAY_MS / 4));

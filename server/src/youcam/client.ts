@@ -161,6 +161,68 @@ export async function createClothTask(input: ClothTaskInput): Promise<string> {
   return taskId;
 }
 
+/** 5 or 10 are the only two the API accepts. Also part of the cache key. */
+export const VIDEO_DURATION_SECONDS = 5;
+
+/**
+ * Video is priced above a still. The real multiplier is unconfirmed, so this
+ * deliberately over-counts rather than letting the budget guard undershoot.
+ * Doubles as the "units saved" figure on a cache hit.
+ */
+export const VIDEO_UNIT_COST = 4;
+
+export interface VideoTaskInput {
+  /** The finished outfit image, already through the File API. */
+  fileId: string;
+  /** 5 or 10 — the only two the API accepts. */
+  durationSeconds: 5 | 10;
+}
+
+/**
+ * The motion we ask for. `prompt` is documented as optional and is not:
+ * leaving it out makes the task fail during generation with
+ * "the 0th style positive_prompt 'None' is in invalid language unknown" —
+ * the default is literally the string "None", which fails language detection.
+ * Confirmed against a live call, 5 Aug 2026.
+ */
+const VIDEO_PROMPT =
+  'The person stands still and turns slightly, showing the outfit. ' +
+  'Slow gentle camera push-in, natural lighting, fashion lookbook.';
+
+/**
+ * AI Image to Video (`/s2s/v2.0/task/image-to-video/youcam`) — turns the
+ * finished outfit still into a few seconds of motion to send someone.
+ *
+ * Verified against a live call (§11): this exact payload returns a task that
+ * completes to an mp4. Field names are `src_file_id` (flat, like cloth-v3),
+ * `dst_duration`, and a bare `'720'` — not `duration` or `'720p'`.
+ */
+export async function createVideoTask(input: VideoTaskInput): Promise<string> {
+  assertBudget(1);
+
+  const res = await fetchWithRetry(`${BASE}/s2s/v2.0/task/image-to-video/youcam`, {
+    method: 'POST',
+    headers: {...authHeaders(), 'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      src_file_id: input.fileId,
+      dst_duration: input.durationSeconds,
+      resolution: '720',
+      prompt: VIDEO_PROMPT,
+    }),
+  });
+  if (!res.ok) await readError(res);
+
+  const body = (await res.json()) as {data?: {task_id?: string}};
+  const taskId = body.data?.task_id;
+  if (!taskId) {
+    console.error('[hanger] unexpected video task response:', JSON.stringify(body));
+    throw new CodedError('upstream_error', 'video task creation returned no task_id');
+  }
+
+  recordSpend('image-to-video', VIDEO_UNIT_COST);
+  return taskId;
+}
+
 export interface PollResult {
   status: 'running' | 'success' | 'error';
   resultUrl?: string;
@@ -179,6 +241,7 @@ async function pollOnce(endpoint: string, taskId: string): Promise<PollResult> {
       task_status?: string;
       status?: string;
       error?: string;
+      error_message?: string;
       results?: {url?: string} | {url?: string}[];
     };
   };
@@ -186,6 +249,12 @@ async function pollOnce(endpoint: string, taskId: string): Promise<PollResult> {
   const status = (data.task_status ?? data.status ?? 'running') as PollResult['status'];
 
   if (status === 'error') {
+    // `error` is a coarse code ("invalid_parameter"); `error_message` is the
+    // sentence that says which parameter. Losing it costs an hour next time.
+    console.error(
+      `[hanger] ${endpoint} task failed: ${data.error ?? 'unknown'}` +
+        (data.error_message ? ` — ${data.error_message}` : ''),
+    );
     return {status: 'error', errorCode: data.error ?? 'upstream_error'};
   }
   if (status === 'success') {
@@ -201,21 +270,26 @@ async function pollOnce(endpoint: string, taskId: string): Promise<PollResult> {
 }
 
 /**
- * §5.3 — 2s interval, 120s ceiling, easing off after 30s. We never stop polling
- * a task early: an abandoned task can expire into InvalidTaskId having already
- * consumed its units.
+ * §5.3 — 2s interval, easing off after 30s. We never stop polling a task early:
+ * an abandoned task can expire into InvalidTaskId having already consumed its
+ * units.
+ *
+ * The ceiling is per-endpoint because they are not comparable. A try-on lands
+ * well inside 120s; a measured 5-second video took 75s, which leaves nothing
+ * for a 10-second one or a busy queue, so video gets 300s.
  */
 export async function pollTask(
   endpoint: string,
   taskId: string,
   onTick?: (elapsedMs: number) => void,
+  ceilingMs = 120_000,
 ): Promise<string> {
   const started = Date.now();
   let interval = 2000;
 
   for (;;) {
     const elapsed = Date.now() - started;
-    if (elapsed > 120_000) throw new CodedError('timeout');
+    if (elapsed > ceilingMs) throw new CodedError('timeout');
 
     const result = await pollOnce(endpoint, taskId);
     if (result.status === 'success') return result.resultUrl!;

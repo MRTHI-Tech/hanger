@@ -125,6 +125,19 @@ export interface OutfitItem {
   skipped?: boolean;
 }
 
+/**
+ * The optional share video built from a finished outfit. Separate from the
+ * outfit's own status — a video that failed says nothing about the outfit.
+ */
+export interface OutfitVideo {
+  status: 'idle' | TaskStatus;
+  url?: string;
+  /** 'unknown' when the service failed in a way we don't have copy for. */
+  code?: string;
+  message?: string;
+  hint?: string;
+}
+
 export interface Outfit {
   id: string;
   name: string | null;
@@ -139,6 +152,7 @@ export interface Outfit {
   hint?: string;
   /** Human note when we fell back to a partial result. */
   partialNote?: string;
+  video?: OutfitVideo;
   createdAt: number;
 }
 

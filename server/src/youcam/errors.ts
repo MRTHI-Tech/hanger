@@ -135,6 +135,13 @@ const MAP: Record<string, {message: string; hint?: string; status?: ContentfulSt
     hint: 'Pick another photo',
     status: 400,
   },
+  invalid_parameter: {
+    // Always our bug, never the shopper's — the request was malformed. They
+    // get a plain sentence; the server log carries the `error_message` that
+    // names the offending field.
+    message: "We couldn't send that off correctly. It's not something you did.",
+    hint: 'Try again',
+  },
   upstream_error: {
     message: "The try-on service had a problem. Let's try that again.",
     hint: 'Try again',

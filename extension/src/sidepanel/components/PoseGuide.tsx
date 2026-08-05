@@ -55,12 +55,12 @@ function Example({
           aria-hidden
           style={{
             color: good ? 'var(--color-success)' : 'var(--color-text-disabled)',
-            fontSize: 12,
+            fontSize: 'var(--font-size-sm)',
             lineHeight: 1,
           }}>
           {good ? '✓' : '✕'}
         </span>
-        <Text type="supporting" size="3xs">
+        <Text type="supporting">
           {caption}
         </Text>
       </HStack>

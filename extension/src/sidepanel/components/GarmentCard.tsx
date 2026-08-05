@@ -76,7 +76,7 @@ export function GarmentCard({
               color: 'var(--color-on-dark)',
               border: 'none',
               cursor: 'pointer',
-              fontSize: 15,
+              fontSize: 'var(--font-size-base)',
               lineHeight: 1,
             }}>
             ×
@@ -85,15 +85,15 @@ export function GarmentCard({
       </div>
 
       <VStack gap={0.5}>
-        <Text type="supporting" size="3xs" maxLines={2} color="primary">
+        <Text type="supporting" maxLines={2} color="primary">
           {garment.title}
         </Text>
         <HStack gap={1} vAlign="center" justify="between">
-          <Text type="supporting" size="3xs" maxLines={1}>
+          <Text type="supporting" maxLines={1}>
             {garment.retailer}
           </Text>
           {garment.price && (
-            <Text type="supporting" size="3xs" color="primary">
+            <Text type="supporting" color="primary">
               {formatPrice(garment.price)}
             </Text>
           )}

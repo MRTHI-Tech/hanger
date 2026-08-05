@@ -321,7 +321,7 @@ function Nav({tab, onChange}: {tab: Tab; onChange: (t: Tab) => void}) {
         layout="fill"
         size="md">
         <SegmentedControlItem value="tryon" label="Try on" />
-        <SegmentedControlItem value="hanger" label="Your Hanger" />
+        <SegmentedControlItem value="hanger" label="Hanger" />
         <SegmentedControlItem value="outfits" label="Outfits" />
       </SegmentedControl>
     </HStack>

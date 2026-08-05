@@ -62,7 +62,18 @@ export function contentTypeForExt(name: string): string {
       return 'image/avif';
     case '.svg':
       return 'image/svg+xml';
+    case '.mp4':
+      return 'video/mp4';
+    case '.webm':
+      return 'video/webm';
+    case '.mov':
+      return 'video/quicktime';
     default:
       return 'image/jpeg';
   }
+}
+
+/** Does this stored file need a <video> rather than an <img>? */
+export function isVideoName(name: string): boolean {
+  return contentTypeForExt(name).startsWith('video/');
 }

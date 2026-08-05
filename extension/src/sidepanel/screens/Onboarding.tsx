@@ -180,7 +180,7 @@ export function Onboarding({
         </VStack>
       )}
 
-      <Text type="supporting" size="3xs">
+      <Text type="supporting">
         Your photo stays on this computer. It's sent to the try-on service only
         when you ask for a fitting.
       </Text>
