@@ -13,7 +13,9 @@ import {garmentRoutes} from './routes/garments.js';
 import {tryonRoutes} from './routes/tryon.js';
 import {outfitRoutes} from './routes/outfits.js';
 import {alternativeRoutes} from './routes/alternatives.js';
+import {handoffRoutes} from './routes/handoff.js';
 import {devRoutes} from './routes/dev.js';
+import {lanAddresses} from './handoff.js';
 
 const app = new Hono();
 
@@ -55,6 +57,7 @@ app.route('/garments', garmentRoutes);
 app.route('/tryon', tryonRoutes);
 app.route('/outfits', outfitRoutes);
 app.route('/alternatives', alternativeRoutes);
+app.route('/handoff', handoffRoutes);
 if (mockMode) app.route('/dev', devRoutes);
 
 app.notFound((c) =>
@@ -77,6 +80,14 @@ serve({fetch: app.fetch, port: env.PORT}, (info) => {
   );
   const {unitsSpent, unitBudget} = budgetSnapshot();
   console.log(`[hanger] units: ${unitsSpent}/${unitBudget}`);
+  // Handing a photo over from a phone needs an address the phone can reach.
+  // Saying it here makes "same Wi-Fi?" answerable without a network tool.
+  const lan = lanAddresses()[0];
+  console.log(
+    lan
+      ? `[hanger] phone handoff: reachable on http://${lan}:${info.port}`
+      : '[hanger] phone handoff: unavailable — no network interface a phone could reach',
+  );
   watchEnvFile();
 });
 

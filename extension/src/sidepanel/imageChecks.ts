@@ -119,6 +119,76 @@ export async function checkPersonPhoto(file: File): Promise<CheckResult> {
 }
 
 /**
+ * A photo of a garment you own. Same §5.4 limits as the person photo, minus
+ * everything about a body: no face to find, and a square crop of a folded
+ * jumper is fine where a square crop of a person is not.
+ */
+export async function checkGarmentPhoto(file: File): Promise<CheckResult> {
+  const warnings: string[] = [];
+
+  if (!ACCEPTED.includes(file.type.toLowerCase())) {
+    return {
+      ok: false,
+      problem: 'We can use JPG and PNG photos. Try saving this one as a JPG.',
+      warnings,
+      width: 0,
+      height: 0,
+    };
+  }
+
+  if (file.size > MAX_BYTES) {
+    return {
+      ok: false,
+      problem: 'That photo is over 10MB. A smaller copy will work.',
+      warnings,
+      width: 0,
+      height: 0,
+    };
+  }
+
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return {
+      ok: false,
+      problem: "We couldn't open that file. Try a different photo.",
+      warnings,
+      width: 0,
+      height: 0,
+    };
+  }
+
+  const {width, height} = bitmap;
+  bitmap.close();
+
+  if (width < MIN_WIDTH || height < MIN_HEIGHT) {
+    return {
+      ok: false,
+      problem: `That photo is ${width}×${height}. We need at least ${MIN_WIDTH}×${MIN_HEIGHT}.`,
+      warnings,
+      width,
+      height,
+    };
+  }
+
+  if (Math.max(width, height) > MAX_SIDE) {
+    return {
+      ok: false,
+      problem: `That photo's longest side is ${Math.max(
+        width,
+        height,
+      )} pixels. Keep it under ${MAX_SIDE}.`,
+      warnings,
+      width,
+      height,
+    };
+  }
+
+  return {ok: true, warnings, width, height};
+}
+
+/**
  * Returns the number of faces, or null when the browser can't tell us.
  * FaceDetector isn't available everywhere, and a missing detector must never
  * turn into a rejection — we just check less.

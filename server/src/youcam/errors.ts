@@ -135,6 +135,14 @@ const MAP: Record<string, {message: string; hint?: string; status?: ContentfulSt
     hint: 'Pick another photo',
     status: 400,
   },
+  no_network: {
+    // Handing a photo over from a phone needs an address the phone can reach.
+    // On a laptop with no network there is nothing to draw a QR code for.
+    message:
+      "This computer isn't on a network your phone could reach, so it can't take a photo for you.",
+    hint: 'Choose a photo instead',
+    status: 503,
+  },
   invalid_parameter: {
     // Always our bug, never the shopper's — the request was malformed. They
     // get a plain sentence; the server log carries the `error_message` that

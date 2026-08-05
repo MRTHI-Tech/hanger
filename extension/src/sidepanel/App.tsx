@@ -21,6 +21,7 @@ import {Hanger} from './screens/Hanger';
 import {OutfitBuilder} from './screens/OutfitBuilder';
 import {Outfits} from './screens/Outfits';
 import {Alternatives} from './screens/Alternatives';
+import {AddOwned} from './screens/AddOwned';
 import {ErrorNote} from './components/ErrorNote';
 import {onProductReady, takePendingProduct} from './bridge';
 
@@ -38,6 +39,7 @@ export function App() {
   const [building, setBuilding] = useState(false);
   const [openOutfit, setOpenOutfit] = useState<Outfit | null>(null);
   const [alternativesFor, setAlternativesFor] = useState<Garment | null>(null);
+  const [addingOwned, setAddingOwned] = useState(false);
   // Bumped whenever something is hung or an outfit finishes, so the list
   // screens reload without holding their own subscriptions.
   const [dataVersion, setDataVersion] = useState(0);
@@ -135,7 +137,16 @@ export function App() {
       person={person}
       onChangePhoto={() => setChangingPhoto(true)}
       nav={<Nav tab={tab} onChange={setTab} />}>
-      {alternativesFor ? (
+      {addingOwned ? (
+        <AddOwned
+          onCancel={() => setAddingOwned(false)}
+          onHung={() => {
+            setAddingOwned(false);
+            setDataVersion((v) => v + 1);
+            setTab('hanger');
+          }}
+        />
+      ) : alternativesFor ? (
         <Alternatives
           garment={alternativesFor}
           person={person}
@@ -168,6 +179,7 @@ export function App() {
       {tab === 'hanger' && (
         <Hanger
           refreshKey={dataVersion}
+          onAddOwned={() => setAddingOwned(true)}
           onBuildOutfit={() => {
             setBuilding(true);
             setTab('outfits');
@@ -186,6 +198,7 @@ export function App() {
         (building ? (
           <OutfitBuilder
             person={person}
+            onAddOwned={() => setAddingOwned(true)}
             onDone={() => {
               setBuilding(false);
               setDataVersion((v) => v + 1);
@@ -194,6 +207,7 @@ export function App() {
         ) : openOutfit ? (
           <OutfitBuilder
             person={person}
+            onAddOwned={() => setAddingOwned(true)}
             // Opening a saved look drops its pieces back on the canvas, so
             // changing one slot is a two-tap job (and, thanks to the prefix
             // cache, one call rather than three).
@@ -232,6 +246,7 @@ function garmentAsProduct(garment: Garment): ScrapedProduct {
     productUrl: garment.productUrl,
     price: garment.price,
     category: garment.category,
+    existingGarmentId: garment.id,
     images: [
       {
         url: mediaUrl(garment.imageUrl),

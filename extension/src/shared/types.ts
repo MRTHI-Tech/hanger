@@ -79,19 +79,32 @@ export interface PersonUploadResult {
   warnings: string[];
 }
 
+/** Where a garment came from: a shop's product page, or your own wardrobe. */
+export type GarmentSource = 'shop' | 'owned';
+
+/** Categories you can photograph off your own floor — the try-on-able four. */
+export const OWNABLE: TryOnCategory[] = TRYONABLE;
+
 export interface Garment {
   id: string;
   title: string;
   brand: string | null;
-  retailer: string;
-  productUrl: string;
+  /** Null for a piece you already own — it didn't come from a shop. */
+  retailer: string | null;
+  productUrl: string | null;
   price: Price | null;
   category: GarmentCategory;
   imageUrl: string;
   sourceImageUrl: string | null;
   /** True once the person chose to keep it in Your Hanger. */
   hung: boolean;
+  source: GarmentSource;
   savedAt: number;
+}
+
+/** Reads better than `g.source === 'owned'` at every call site. */
+export function isOwned(garment: Garment): boolean {
+  return garment.source === 'owned';
 }
 
 export interface Price {
@@ -196,10 +209,18 @@ export interface ScoredImage {
 export interface ScrapedProduct {
   title: string;
   brand: string | null;
-  retailer: string;
-  productUrl: string;
+  /** Null when this isn't from a shop at all — a piece you already own. */
+  retailer: string | null;
+  productUrl: string | null;
   price: Price | null;
   category: GarmentCategory;
+  /**
+   * Set when this stands for a garment that's already in Your Hanger, rather
+   * than something just scraped off a page. The try-on reuses that row instead
+   * of storing a second copy — and for an owned piece there's no retailer or
+   * product URL to store a copy with.
+   */
+  existingGarmentId?: string;
   images: ScoredImage[];
   /** Index into images of the best candidate. */
   suggestedIndex: number;

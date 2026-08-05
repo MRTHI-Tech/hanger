@@ -8,6 +8,7 @@ import type {
   OutfitSlot,
   Person,
   PersonUploadResult,
+  TryOnCategory,
   TryOnResult,
 } from '../shared/types';
 
@@ -89,6 +90,46 @@ export const api = {
     return request<Garment>('/garments', {method: 'POST', body: form});
   },
 
+  /** Hang something out of your own wardrobe: a photo, a category, a name. */
+  saveOwnedGarment: (blob: Blob, meta: OwnedGarmentMeta) => {
+    const form = new FormData();
+    form.append('image', blob, 'owned.jpg');
+    form.append('meta', JSON.stringify(meta));
+    return request<Garment>('/garments/owned', {method: 'POST', body: form});
+  },
+
+  /**
+   * Open a phone handoff. The returned URL goes in a QR code; the phone opens
+   * it, takes the photo, and sends it back here.
+   */
+  createHandoff: (purpose: HandoffPurpose = 'garment') =>
+    request<Handoff>('/handoff', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({purpose}),
+    }),
+
+  handoffStatus: (token: string) =>
+    request<{status: HandoffStatus}>(`/handoff/${token}/status`),
+
+  /**
+   * Collect the photo the phone sent. Spends the token, so this is called once
+   * and the bytes live in the panel from then on.
+   */
+  takeHandoffPhoto: async (token: string): Promise<File> => {
+    const res = await fetch(`${API_BASE}/handoff/${token}/photo`);
+    if (!res.ok) {
+      throw new HangerError(
+        'not_found',
+        "That photo isn't there any more. Send it from your phone again.",
+      );
+    }
+    const blob = await res.blob();
+    return new File([blob], 'phone.jpg', {
+      type: blob.type || 'image/jpeg',
+    });
+  },
+
   /** "Hang it" — keep this garment in Your Hanger. */
   hangGarment: (id: string) =>
     request<Garment>(`/garments/${id}/hang`, {method: 'POST'}),
@@ -149,6 +190,24 @@ export interface SaveGarmentMeta {
   sourceImageUrl: string | null;
   /** Keep it in Your Hanger straight away, without a try-on first. */
   hang?: boolean;
+}
+
+export interface OwnedGarmentMeta {
+  title: string;
+  category: TryOnCategory;
+}
+
+export type HandoffPurpose = 'garment' | 'person';
+export type HandoffStatus = 'waiting' | 'ready' | 'expired';
+
+export interface Handoff {
+  token: string;
+  /** What the QR encodes — shown as text too, for a camera that won't scan. */
+  url: string;
+  qrUrl: string;
+  expiresAt: number;
+  /** Every address a phone might reach this computer on, best guess first. */
+  addresses: string[];
 }
 
 export function mediaUrl(pathOrUrl: string): string {

@@ -53,6 +53,7 @@ export function garmentJson(row: GarmentRow) {
     imageUrl: mediaUrl(row.image_path),
     sourceImageUrl: row.source_image_url,
     hung: Boolean(row.hung),
+    source: row.source,
     savedAt: row.saved_at,
   };
 }
@@ -132,8 +133,8 @@ garmentRoutes.post('/', async (c) => {
   db.prepare(
     `INSERT INTO garment
        (id, title, brand, retailer, product_url, price_amount, price_currency,
-        category, image_path, source_image_url, hung, saved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        category, image_path, source_image_url, hung, source, saved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'shop', ?)`,
   ).run(
     id,
     meta.data.title,
@@ -152,6 +153,67 @@ garmentRoutes.post('/', async (c) => {
   console.log(
     `[hanger] ${hang ? 'hung' : 'scraped'}: ${meta.data.title} (${meta.data.category}) from ${meta.data.retailer}`,
   );
+
+  return c.json(garmentJson(getGarmentRow(id)));
+});
+
+/**
+ * A piece out of your own wardrobe: a photograph, a category, a name. No
+ * retailer, no product page, no price — it's already yours. From here it's an
+ * ordinary garment: try it on, or chain it with things you're still deciding
+ * about.
+ *
+ * Only the try-on-able categories (§5.2) are offered. An owned hat would be a
+ * row nothing can do anything with — no slot takes it and cloth-v3 won't wear
+ * it — so the picker doesn't offer one.
+ */
+const ownedMetaSchema = z.object({
+  title: z.string().min(1).max(300),
+  category: z.enum(['upper_body', 'lower_body', 'full_body', 'shoes']),
+});
+
+garmentRoutes.post('/owned', async (c) => {
+  const form = await c.req.formData();
+  const image = form.get('image');
+  const rawMeta = form.get('meta');
+
+  if (!(image instanceof File)) {
+    throw new CodedError('invalid_request', 'no image in the request');
+  }
+  if (typeof rawMeta !== 'string') {
+    throw new CodedError('invalid_request', 'no meta in the request');
+  }
+
+  let parsedMeta: unknown;
+  try {
+    parsedMeta = JSON.parse(rawMeta);
+  } catch {
+    throw new CodedError('invalid_request', 'meta was not valid JSON');
+  }
+
+  const meta = ownedMetaSchema.safeParse(parsedMeta);
+  if (!meta.success) {
+    console.warn('[hanger] owned garment meta rejected:', meta.error.issues);
+    throw new CodedError('invalid_request', 'meta did not match the expected shape');
+  }
+
+  const bytes = Buffer.from(await image.arrayBuffer());
+  validateImage(bytes, 'garment');
+
+  const id = randomUUID();
+  const path = save(bytes, extForContentType(image.type || 'image/jpeg'));
+
+  // Owned pieces are hung on arrival. There's no try-on step to keep them
+  // afterwards the way a shop garment has (§004_hung_flag) — photographing
+  // something you own *is* the act of keeping it.
+  db.prepare(
+    `INSERT INTO garment
+       (id, title, brand, retailer, product_url, price_amount, price_currency,
+        category, image_path, source_image_url, hung, source, saved_at)
+     VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, NULL, 1, 'owned', ?)`,
+  ).run(id, meta.data.title, meta.data.category, path, Date.now());
+
+  console.log(`[hanger] hung your own: ${meta.data.title} (${meta.data.category})`);
 
   return c.json(garmentJson(getGarmentRow(id)));
 });

@@ -89,8 +89,10 @@ export function GarmentCard({
           {garment.title}
         </Text>
         <HStack gap={1} vAlign="center" justify="between">
+          {/* Where it came from. For a piece you own that's your own wardrobe,
+              and saying so is what makes the mix legible at a glance. */}
           <Text type="supporting" maxLines={1}>
-            {garment.retailer}
+            {garment.retailer ?? 'Yours'}
           </Text>
           {garment.price && (
             <Text type="supporting" color="primary">

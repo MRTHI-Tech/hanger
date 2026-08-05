@@ -37,12 +37,16 @@ export interface Price {
   currency: string;
 }
 
+/** Where a garment came from: a shop's product page, or your own wardrobe. */
+export type GarmentSource = 'shop' | 'owned';
+
 export interface GarmentRow {
   id: string;
   title: string;
   brand: string | null;
-  retailer: string;
-  product_url: string;
+  /** Null for an owned piece — it didn't come from a shop. */
+  retailer: string | null;
+  product_url: string | null;
   price_amount: number | null;
   price_currency: string | null;
   category: GarmentCategory;
@@ -51,6 +55,7 @@ export interface GarmentRow {
   youcam_file_id: string | null;
   file_id_at: number | null;
   hung: number;
+  source: GarmentSource;
   saved_at: number;
 }
 

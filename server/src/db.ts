@@ -168,6 +168,46 @@ const MIGRATIONS: {name: string; sql: string}[] = [
       );
     `,
   },
+  {
+    name: '008_owned_garments',
+    sql: `
+      -- A garment can come off a product page or out of your own wardrobe.
+      -- An owned piece has no retailer and no product page, and both columns
+      -- were NOT NULL, so this rebuilds the table rather than storing a
+      -- sentinel URL that every reader downstream would have to un-fake.
+      -- Nothing declares a foreign key onto garment, so the copy is safe.
+      CREATE TABLE garment_new (
+        id            TEXT PRIMARY KEY,
+        title         TEXT NOT NULL,
+        brand         TEXT,
+        retailer      TEXT,
+        product_url   TEXT,
+        price_amount  REAL,
+        price_currency TEXT,
+        category      TEXT NOT NULL,
+        image_path    TEXT NOT NULL,
+        source_image_url TEXT,
+        youcam_file_id TEXT,
+        file_id_at    INTEGER,
+        hung          INTEGER DEFAULT 0,
+        source        TEXT NOT NULL DEFAULT 'shop',
+        saved_at      INTEGER NOT NULL
+      );
+
+      INSERT INTO garment_new
+        (id, title, brand, retailer, product_url, price_amount, price_currency,
+         category, image_path, source_image_url, youcam_file_id, file_id_at,
+         hung, source, saved_at)
+      SELECT
+         id, title, brand, retailer, product_url, price_amount, price_currency,
+         category, image_path, source_image_url, youcam_file_id, file_id_at,
+         hung, 'shop', saved_at
+      FROM garment;
+
+      DROP TABLE garment;
+      ALTER TABLE garment_new RENAME TO garment;
+    `,
+  },
 ];
 
 function migrate() {

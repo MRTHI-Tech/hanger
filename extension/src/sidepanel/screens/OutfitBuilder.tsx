@@ -18,6 +18,7 @@ import {BeforeAfter} from '../components/BeforeAfter';
 import {ErrorNote} from '../components/ErrorNote';
 import {formatAmount, formatPrice} from '../format';
 import {
+  isOwned,
   SLOT_CATEGORIES,
   SLOT_LABELS,
   SLOT_ORDER,
@@ -34,10 +35,12 @@ export function OutfitBuilder({
   person,
   initial,
   onDone,
+  onAddOwned,
 }: {
   person: Person;
   initial?: Filled;
   onDone: () => void;
+  onAddOwned: () => void;
 }) {
   const [wardrobe, setWardrobe] = useState<Garment[] | null>(null);
   const [filled, setFilled] = useState<Filled>(initial ?? {});
@@ -142,6 +145,7 @@ export function OutfitBuilder({
         wardrobe={wardrobe ?? []}
         onPick={(garment) => put(picking, garment)}
         onCancel={() => setPicking(null)}
+        onAddOwned={onAddOwned}
       />
     );
   }
@@ -266,7 +270,14 @@ export function OutfitBuilder({
         <EmptyState
           isCompact
           title="Nothing to build with yet"
-          description="Hang a few pieces first, then combine them here."
+          description="Hang a few pieces first, then combine them here. Things you already own count."
+          actions={
+            <Button
+              label="Add something you own"
+              variant="secondary"
+              onClick={onAddOwned}
+            />
+          }
         />
       )}
     </VStack>
@@ -278,11 +289,13 @@ function Picker({
   wardrobe,
   onPick,
   onCancel,
+  onAddOwned,
 }: {
   slot: OutfitSlot;
   wardrobe: Garment[];
   onPick: (garment: Garment) => void;
   onCancel: () => void;
+  onAddOwned: () => void;
 }) {
   const eligible = wardrobe.filter((g) =>
     SLOT_CATEGORIES[slot].includes(g.category),
@@ -301,8 +314,17 @@ function Picker({
       {eligible.length === 0 ? (
         <EmptyState
           title={`No ${SLOT_LABELS[slot].toLowerCase()} yet`}
-          description="Try one on from a shop and tap Hang it, then come back."
-          actions={<Button label="Back" variant="secondary" onClick={onCancel} />}
+          description="Try one on from a shop and tap Hang it — or photograph one you already own."
+          actions={
+            <VStack gap={2}>
+              <Button
+                label="Add something you own"
+                variant="secondary"
+                onClick={onAddOwned}
+              />
+              <Button label="Back" variant="ghost" onClick={onCancel} />
+            </VStack>
+          }
         />
       ) : (
         <>
@@ -382,7 +404,12 @@ function Finished({
             <>
               <Divider />
               <HStack justify="between" vAlign="center">
-                <Text type="label">Total</Text>
+                {/* Once part of the look is already in your wardrobe, the
+                    number underneath it isn't what the outfit costs — it's
+                    what's left to buy, and saying so is the point. */}
+                <Text type="label">
+                  {worn.some((item) => isOwned(item.garment)) ? 'To buy' : 'Total'}
+                </Text>
                 <Badge
                   variant="neutral"
                   label={formatAmount(outfit.total.amount, outfit.total.currency)}
@@ -597,15 +624,22 @@ function VideoPlayer({url}: {url: string}) {
  *
  * The title still carries the row for anyone not looking at it: it's the image
  * alt and it names the View button.
+ *
+ * A piece you already own has no price and nowhere to go — it takes "Yours"
+ * where the price would be, and no button. That's the whole point of the mixed
+ * list: what's left is only what you'd have to buy.
  */
 function WornRow({item}: {item: Outfit['items'][number]}) {
   const {garment} = item;
+  const owned = isOwned(garment);
 
   return (
     <HStack gap={3} vAlign="center">
       <img
         src={mediaUrl(garment.imageUrl)}
-        alt={`${SLOT_LABELS[item.slot]}: ${garment.title}`}
+        alt={`${SLOT_LABELS[item.slot]}: ${garment.title}${
+          owned ? ', already yours' : ''
+        }`}
         className="shrink-0 rounded-lg"
         style={{
           width: 44,
@@ -618,22 +652,30 @@ function WornRow({item}: {item: Outfit['items'][number]}) {
 
       {/* Grows to fill, so the prices line up in a column above the total. */}
       <div style={{flex: 1, minWidth: 0, textAlign: 'right'}}>
-        {garment.price && (
-          <Text type="supporting" color="primary">
-            {formatPrice(garment.price)}
-          </Text>
+        {owned ? (
+          <Text type="supporting">Yours</Text>
+        ) : (
+          garment.price && (
+            <Text type="supporting" color="primary">
+              {formatPrice(garment.price)}
+            </Text>
+          )
         )}
       </div>
 
-      <div className="shrink-0">
-        <Button
-          label="View"
-          aria-label={`View ${garment.title} at ${garment.retailer}`}
-          variant="ghost"
-          size="sm"
-          onClick={() => window.open(garment.productUrl, '_blank')}
-        />
-      </div>
+      {!owned && (
+        <div className="shrink-0">
+          <Button
+            label="View"
+            aria-label={`View ${garment.title} at ${garment.retailer}`}
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (garment.productUrl) window.open(garment.productUrl, '_blank');
+            }}
+          />
+        </div>
+      )}
     </HStack>
   );
 }

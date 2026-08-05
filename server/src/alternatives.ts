@@ -268,7 +268,8 @@ export interface FilteredMatch {
 /** §10.1 step 3 — everything that isn't a real, priced, different-shop result goes. */
 export function filterMatches(
   matches: LensMatch[],
-  originalRetailer: string,
+  /** Null for a piece you already own — there's no shop to exclude. */
+  originalRetailer: string | null,
   fallbackCurrency = 'GBP',
 ): FilteredMatch[] {
   const seen = new Set<string>();
@@ -284,7 +285,9 @@ export function filterMatches(
     if (NOT_SHOPS.some((bad) => host.includes(bad))) continue;
 
     // Same shop as the original isn't an alternative, it's the same thing.
-    if (host === originalRetailer || originalRetailer.includes(host)) continue;
+    if (originalRetailer && (host === originalRetailer || originalRetailer.includes(host))) {
+      continue;
+    }
 
     const price = parsePrice(match.price, fallbackCurrency);
     if (!price) continue;

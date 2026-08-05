@@ -112,6 +112,15 @@ export function TryOn({
     const image = product.images[selectedImage];
     if (!image) throw new HangerError('invalid_request', 'Pick a photo first.');
 
+    // Already in Your Hanger — fitting it again must not fork a second row.
+    // It's also the only way an owned piece can get here: there's no retailer
+    // and no product URL to build a fresh garment out of.
+    if (product.existingGarmentId) {
+      const existing = garment ?? (await api.getGarment(product.existingGarmentId));
+      setGarment(existing);
+      return hang && !existing.hung ? api.hangGarment(existing.id) : existing;
+    }
+
     const reusable =
       garment != null &&
       savedAs != null &&
@@ -128,6 +137,17 @@ export function TryOn({
       throw new HangerError(
         'no_tab',
         'Open the product page again so Hanger can read the photo from it.',
+      );
+    }
+
+    // Everything without a shop behind it is already in Your Hanger and was
+    // handled above. Anything reaching here came off a product page and has
+    // both — but a new row can't be stored without them, so say so rather
+    // than posting nulls the server would reject.
+    if (!product.retailer || !product.productUrl) {
+      throw new HangerError(
+        'invalid_request',
+        "We don't have a shop for this one. Open its product page and try again.",
       );
     }
 
@@ -269,8 +289,12 @@ export function TryOn({
         </Heading>
         <HStack gap={2} vAlign="center" wrap="wrap">
           {product.brand && <Text type="supporting">{product.brand}</Text>}
-          <Text type="supporting">·</Text>
-          <Text type="supporting">{product.retailer}</Text>
+          {product.brand && product.retailer && <Text type="supporting">·</Text>}
+          {product.retailer ? (
+            <Text type="supporting">{product.retailer}</Text>
+          ) : (
+            <Badge variant="neutral" label="Yours" />
+          )}
           {product.price && (
             <Badge variant="neutral" label={formatPrice(product.price)} />
           )}
@@ -312,14 +336,19 @@ export function TryOn({
           />
 
           <VStack gap={3}>
-            <Selector
-              label="What is it?"
-              description="We guessed from the page. Change it if we got it wrong."
-              options={CATEGORY_OPTIONS}
-              value={category}
-              onChange={(v) => setCategory(v as GarmentCategory)}
-              width="100%"
-            />
+            {/* A garment that's already hung had its category settled when it
+                was kept, and the row is being reused rather than rewritten —
+                offering to change it here would silently do nothing. */}
+            {!product.existingGarmentId && (
+              <Selector
+                label="What is it?"
+                description="We guessed from the page. Change it if we got it wrong."
+                options={CATEGORY_OPTIONS}
+                value={category}
+                onChange={(v) => setCategory(v as GarmentCategory)}
+                width="100%"
+              />
+            )}
 
             {showShoesToggle && (
               <Switch

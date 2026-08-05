@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useRef, useState} from 'react';
 import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
@@ -8,8 +8,9 @@ import {Card} from '@astryxdesign/core/Card';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {api, mediaUrl} from '../api';
-import {canvasToFile, checkPersonPhoto} from '../imageChecks';
+import {checkPersonPhoto} from '../imageChecks';
 import {PoseGuide} from '../components/PoseGuide';
+import {CameraCapture} from '../components/CameraCapture';
 import {ErrorNote} from '../components/ErrorNote';
 
 type Stage = 'intro' | 'camera' | 'checking' | 'uploading' | 'done';
@@ -31,6 +32,13 @@ export function Onboarding({
     existingPhotoUrl ?? null,
   );
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Stable: CameraCapture starts the stream in an effect keyed on this, so a
+  // fresh arrow every render would tear the camera down and restart it.
+  const cameraUnavailable = useCallback((reason: string) => {
+    setProblem(reason);
+    setStage('intro');
+  }, []);
 
   async function accept(file: File) {
     setProblem(null);
@@ -59,12 +67,11 @@ export function Onboarding({
   if (stage === 'camera') {
     return (
       <CameraCapture
+        title="Stand back a little"
+        hint="Get your whole body in the frame, facing the camera."
         onCapture={accept}
         onCancel={() => setStage('intro')}
-        onUnavailable={(reason) => {
-          setProblem(reason);
-          setStage('intro');
-        }}
+        onUnavailable={cameraUnavailable}
       />
     );
   }
@@ -203,98 +210,5 @@ function PhotoPreview({url}: {url: string}) {
         style={{maxHeight: 420, objectFit: 'contain'}}
       />
     </div>
-  );
-}
-
-function CameraCapture({
-  onCapture,
-  onCancel,
-  onUnavailable,
-}: {
-  onCapture: (file: File) => void;
-  onCancel: () => void;
-  onUnavailable: (reason: string) => void;
-}) {
-  const video = useRef<HTMLVideoElement>(null);
-  const stream = useRef<MediaStream | null>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function start() {
-      try {
-        const media = await navigator.mediaDevices.getUserMedia({
-          video: {width: {ideal: 1080}, height: {ideal: 1440}, facingMode: 'user'},
-        });
-        if (cancelled) {
-          media.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        stream.current = media;
-        if (video.current) {
-          video.current.srcObject = media;
-          await video.current.play();
-        }
-        setReady(true);
-      } catch {
-        onUnavailable(
-          "We couldn't reach your camera. Choose a photo from your computer instead.",
-        );
-      }
-    }
-
-    void start();
-    return () => {
-      cancelled = true;
-      stream.current?.getTracks().forEach((t) => t.stop());
-    };
-  }, [onUnavailable]);
-
-  async function take() {
-    const el = video.current;
-    if (!el) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = el.videoWidth;
-    canvas.height = el.videoHeight;
-    canvas.getContext('2d')?.drawImage(el, 0, 0);
-    stream.current?.getTracks().forEach((t) => t.stop());
-    onCapture(await canvasToFile(canvas, 'camera.jpg'));
-  }
-
-  return (
-    <VStack padding={4} gap={4}>
-      <VStack gap={1}>
-        <Heading level={2}>Stand back a little</Heading>
-        <Text type="supporting">
-          Get your whole body in the frame, facing the camera.
-        </Text>
-      </VStack>
-
-      <div
-        className="w-full overflow-hidden rounded-xl"
-        style={{
-          backgroundColor: 'var(--color-background-inverted)',
-          aspectRatio: '3 / 4',
-        }}>
-        <video
-          ref={video}
-          playsInline
-          muted
-          className="block h-full w-full"
-          style={{objectFit: 'cover'}}
-        />
-      </div>
-
-      <VStack gap={2}>
-        <Button
-          label="Take the photo"
-          variant="primary"
-          isDisabled={!ready}
-          onClick={take}
-        />
-        <Button label="Back" variant="ghost" onClick={onCancel} />
-      </VStack>
-    </VStack>
   );
 }

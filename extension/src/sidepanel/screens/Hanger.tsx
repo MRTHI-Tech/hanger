@@ -12,6 +12,7 @@ import {GarmentCard} from '../components/GarmentCard';
 import {ErrorNote} from '../components/ErrorNote';
 import {
   CATEGORY_LABELS,
+  isOwned,
   type Garment,
   type GarmentCategory,
 } from '../../shared/types';
@@ -22,11 +23,13 @@ import {
  */
 export function Hanger({
   onBuildOutfit,
+  onAddOwned,
   onTryOn,
   onFindAlternatives,
   refreshKey,
 }: {
   onBuildOutfit: () => void;
+  onAddOwned: () => void;
   onTryOn: (garment: Garment) => void;
   onFindAlternatives: (garment: Garment) => void;
   refreshKey: number;
@@ -67,16 +70,26 @@ export function Hanger({
 
   if (garments.length === 0) {
     return (
-      <VStack padding={4} height="100%" vAlign="center">
+      <VStack padding={4} height="100%" gap={4} vAlign="center">
         <EmptyState
           title="Nothing on the hanger yet"
-          description="Try something on from any shop and tap Hang it. Pieces from different shops sit side by side here."
+          description="Try something on from any shop and tap Hang it. Pieces from different shops sit side by side here — along with what's already in your wardrobe."
+          actions={
+            <Button
+              label="Add something you own"
+              variant="secondary"
+              onClick={onAddOwned}
+            />
+          }
         />
       </VStack>
     );
   }
 
-  const retailers = new Set(garments.map((g) => g.retailer));
+  const retailers = new Set(
+    garments.map((g) => g.retailer).filter((r): r is string => r != null),
+  );
+  const ownedCount = garments.filter(isOwned).length;
   const categories = [...new Set(garments.map((g) => g.category))];
   const shown =
     filter === 'all' ? garments : garments.filter((g) => g.category === filter);
@@ -86,8 +99,7 @@ export function Hanger({
       <VStack gap={1}>
         <Heading level={2}>Your Hanger</Heading>
         <Text type="supporting">
-          {garments.length} {garments.length === 1 ? 'piece' : 'pieces'} from{' '}
-          {retailers.size} {retailers.size === 1 ? 'shop' : 'shops'}
+          {summarise(garments.length, retailers.size, ownedCount)}
         </Text>
       </VStack>
 
@@ -134,29 +146,63 @@ export function Hanger({
           </Text>
           <HStack gap={2} wrap="wrap">
             <Badge variant="neutral" label={CATEGORY_LABELS[selected.category]} />
-            <Badge variant="neutral" label={selected.retailer} />
+            <Badge
+              variant="neutral"
+              label={selected.retailer ?? 'Yours'}
+            />
           </HStack>
           <Button
             label="Try this on again"
             variant="secondary"
             onClick={() => onTryOn(selected)}
           />
-          <Button
-            label="Find it cheaper"
-            variant="secondary"
-            onClick={() => onFindAlternatives(selected)}
-          />
-          <Button
-            label="Open the shop's page"
-            variant="ghost"
-            onClick={() => window.open(selected.productUrl, '_blank')}
-          />
+          {/* Both of these are about the shop it came from. A piece you own
+              came from your own floor: there's nothing to open, and "find it
+              cheaper" is the wrong question about something already yours. */}
+          {!isOwned(selected) && (
+            <>
+              <Button
+                label="Find it cheaper"
+                variant="secondary"
+                onClick={() => onFindAlternatives(selected)}
+              />
+              <Button
+                label="Open the shop's page"
+                variant="ghost"
+                onClick={() => {
+                  if (selected.productUrl) {
+                    window.open(selected.productUrl, '_blank');
+                  }
+                }}
+              />
+            </>
+          )}
         </VStack>
       )}
 
-      <Button label="Build an outfit" variant="primary" onClick={onBuildOutfit} />
+      <VStack gap={2}>
+        <Button label="Build an outfit" variant="primary" onClick={onBuildOutfit} />
+        <Button
+          label="Add something you own"
+          variant="secondary"
+          onClick={onAddOwned}
+        />
+      </VStack>
     </VStack>
   );
+}
+
+/**
+ * The line under the heading. The cross-retailer mix is the point, so it's what
+ * gets counted — and once your own wardrobe is in here, that it spans both is
+ * the more interesting fact.
+ */
+function summarise(total: number, shops: number, owned: number): string {
+  const pieces = `${total} ${total === 1 ? 'piece' : 'pieces'}`;
+  if (shops === 0) return `${pieces} from your own wardrobe`;
+  const fromShops = `${shops} ${shops === 1 ? 'shop' : 'shops'}`;
+  if (owned === 0) return `${pieces} from ${fromShops}`;
+  return `${pieces} — ${fromShops} and ${owned} of your own`;
 }
 
 function FilterChip({
