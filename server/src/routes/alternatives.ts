@@ -26,9 +26,14 @@ function alternativeJson(row: AlternativeRow, original: Price | null) {
       ? {amount: row.price_amount, currency: row.price_currency}
       : null;
 
-  // Only meaningful when both prices are in the same currency.
+  // Only meaningful when both prices are in the same currency. We don't
+  // convert — a stale exchange rate quietly turning £40 into "R900 cheaper"
+  // is a worse answer than saying we can't compare.
+  const comparable = Boolean(
+    price && original && price.currency === original.currency,
+  );
   const savings =
-    price && original && price.currency === original.currency
+    comparable && price && original
       ? Math.round((original.amount - price.amount) * 100) / 100
       : null;
 
@@ -43,6 +48,8 @@ function alternativeJson(row: AlternativeRow, original: Price | null) {
     thumbnailUrl: row.thumbnail_url ?? row.image_url,
     price,
     savingsVsOriginal: savings,
+    /** False when both prices exist but sit in different currencies. */
+    priceComparable: comparable,
     inStock: row.in_stock == null ? null : Boolean(row.in_stock),
     fetchedAt: row.fetched_at,
   };

@@ -151,6 +151,8 @@ export interface Alternative {
   thumbnailUrl: string | null;
   price: Price | null;
   savingsVsOriginal: number | null;
+  /** False when both prices exist but sit in different currencies (§10.1). */
+  priceComparable: boolean;
   /** Null when the search result didn't say. */
   inStock: boolean | null;
   fetchedAt: number;

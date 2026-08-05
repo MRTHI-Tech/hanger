@@ -15,6 +15,11 @@ const schema = z.object({
   PORT: z.coerce.number().default(8787),
   /** Default true so a fresh clone runs with no credentials at all (§12.1). */
   MOCK_MODE: bool(true),
+  /**
+   * Two-letter market for the alternatives search. Normally left unset — the
+   * garment's own currency picks the market, so a ZAR garment searches ZA.
+   */
+  SEARCH_COUNTRY: z.string().length(2).optional(),
   UNIT_BUDGET: z.coerce.number().default(600),
   DATABASE_PATH: z.string().default('./data/hanger.db'),
   STORAGE_PATH: z.string().default('./storage'),

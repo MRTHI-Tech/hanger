@@ -133,6 +133,11 @@ export function Alternatives({
                   )} cheaper`}
                 />
               )}
+            {result.alternative.price && !result.alternative.priceComparable && (
+              <Text type="supporting" size="3xs">
+                priced in {result.alternative.price.currency}
+              </Text>
+            )}
           </HStack>
         </VStack>
 
@@ -303,6 +308,11 @@ function AlternativeCard({
             {saves != null && saves < 0 && (
               <Text type="supporting" size="3xs">
                 {formatAmount(-saves, item.price?.currency ?? 'GBP')} more
+              </Text>
+            )}
+            {item.price && !item.priceComparable && (
+              <Text type="supporting" size="3xs">
+                can't compare — priced in {item.price.currency}
               </Text>
             )}
           </HStack>

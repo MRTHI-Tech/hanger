@@ -10,11 +10,12 @@ import type {GarmentRow, Price} from './types.js';
  * The alternatives engine (§10) — reverse image search over the garment you're
  * looking at, cheapest first, and every result is something you can then try on.
  *
- * On the response shape: the parser is built around SerpApi's own published
- * Google Lens example (saved in fixtures/serpapi-google-lens.json), because
- * this build has no SERPAPI_KEY to make a live call with. Every field is read
- * defensively and the first live response gets its shape logged, so a mismatch
- * announces itself instead of quietly producing an empty list.
+ * On the response shape: the parser was built around SerpApi's own published
+ * Google Lens example (saved in fixtures/serpapi-google-lens.json) rather than
+ * a live call. Every field is read defensively and the first live response
+ * gets its shape logged, so a mismatch announces itself instead of quietly
+ * producing an empty list. `scripts/capture-lens.ts` saves a real response and
+ * runs it through `filterMatches` to check that end to end.
  */
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -107,43 +108,115 @@ async function callSerpApi(params: Record<string, string>): Promise<Record<strin
   return body;
 }
 
-function parsePrice(price: LensMatch['price']): Price | null {
+/**
+ * Prices come back written for wherever the shop is: "£12.99", "R1 299,00",
+ * "1.299,00 €". Stripping everything but digits and a dot turns the second of
+ * those into 129900, so work out which separator is the decimal one first.
+ */
+export function parseAmount(raw: string): number | null {
+  const compact = raw.replace(/[^\d.,\s]/g, '').replace(/\s/g, '');
+  if (!compact) return null;
+
+  const lastDot = compact.lastIndexOf('.');
+  const lastComma = compact.lastIndexOf(',');
+  let decimalAt = -1;
+
+  if (lastDot >= 0 && lastComma >= 0) {
+    // Whichever comes last is the decimal point; the other groups thousands.
+    decimalAt = Math.max(lastDot, lastComma);
+  } else if (lastDot >= 0 || lastComma >= 0) {
+    const only = Math.max(lastDot, lastComma);
+    // Exactly three digits after the only separator means it groups thousands
+    // ("1,299", "1.234.567"). Anything else is a decimal ("12.99", "1299,00").
+    decimalAt = compact.length - only - 1 === 3 ? -1 : only;
+  }
+
+  const digits = (s: string) => s.replace(/[.,]/g, '');
+  const value =
+    decimalAt === -1
+      ? Number(digits(compact))
+      : Number(
+          `${digits(compact.slice(0, decimalAt))}.${digits(compact.slice(decimalAt + 1))}`,
+        );
+
+  return Number.isFinite(value) ? value : null;
+}
+
+function parsePrice(price: LensMatch['price'], fallbackCurrency: string): Price | null {
   if (price == null) return null;
 
   if (typeof price === 'number') {
-    return Number.isFinite(price) ? {amount: price, currency: 'GBP'} : null;
+    return Number.isFinite(price) ? {amount: price, currency: fallbackCurrency} : null;
   }
 
   if (typeof price === 'string') {
-    const amount = Number.parseFloat(price.replace(/[^\d.]/g, ''));
-    if (!Number.isFinite(amount)) return null;
-    return {amount, currency: currencyFromSymbol(price)};
+    const amount = parseAmount(price);
+    if (amount == null) return null;
+    return {amount, currency: currencyFromSymbol(price, fallbackCurrency)};
   }
+
+  const currency = currencyFromSymbol(
+    `${price.currency ?? ''} ${price.value ?? ''}`,
+    fallbackCurrency,
+  );
 
   const extracted = price.extracted_value;
   if (typeof extracted === 'number' && Number.isFinite(extracted)) {
-    return {
-      amount: extracted,
-      currency: currencyFromSymbol(price.currency ?? price.value ?? ''),
-    };
+    return {amount: extracted, currency};
   }
 
   if (typeof price.value === 'string') {
-    const amount = Number.parseFloat(price.value.replace(/[^\d.]/g, ''));
-    if (Number.isFinite(amount)) {
-      return {amount, currency: currencyFromSymbol(price.value)};
-    }
+    const amount = parseAmount(price.value);
+    if (amount != null) return {amount, currency};
   }
 
   return null;
 }
 
-function currencyFromSymbol(text: string): string {
+/**
+ * Symbols are ambiguous — "R$" is Brazil, plain "R" is South Africa, and a
+ * bare "$" could be several places. When nothing matches, the garment being
+ * compared against is a far better guess than a hardcoded default.
+ */
+function currencyFromSymbol(text: string, fallback: string): string {
+  const iso = text.match(/\b(GBP|USD|EUR|ZAR|AUD|CAD|JPY|INR|NZD|SEK|CHF)\b/);
+  if (iso) return iso[1];
   if (text.includes('£')) return 'GBP';
   if (text.includes('€')) return 'EUR';
+  if (text.includes('R$')) return 'BRL';
   if (text.includes('$')) return 'USD';
-  if (/^[A-Z]{3}$/.test(text.trim())) return text.trim();
-  return 'GBP';
+  if (/\bR\s?\d/.test(text)) return 'ZAR';
+  return fallback;
+}
+
+/**
+ * Where to search. A shopper in Johannesburg is not helped by a cheaper
+ * jersey in Manchester, so the garment's own currency picks the market unless
+ * SEARCH_COUNTRY overrides it.
+ */
+const MARKETS: Record<string, {country: string; gl: string}> = {
+  ZAR: {country: 'za', gl: 'za'},
+  GBP: {country: 'gb', gl: 'uk'},
+  USD: {country: 'us', gl: 'us'},
+  EUR: {country: 'ie', gl: 'ie'},
+  AUD: {country: 'au', gl: 'au'},
+  CAD: {country: 'ca', gl: 'ca'},
+  INR: {country: 'in', gl: 'in'},
+};
+
+export function marketFor(garment: GarmentRow): {
+  country: string;
+  gl: string;
+  currency: string;
+} {
+  const currency = (garment.price_currency ?? 'GBP').toUpperCase();
+  const market = MARKETS[currency] ?? MARKETS.GBP;
+  const override = env.SEARCH_COUNTRY?.toLowerCase();
+  return {
+    country: override ?? market.country,
+    gl: override ?? market.gl,
+    currency,
+  };
 }
 
 function hostOf(link: string): string | null {
@@ -196,6 +269,7 @@ export interface FilteredMatch {
 export function filterMatches(
   matches: LensMatch[],
   originalRetailer: string,
+  fallbackCurrency = 'GBP',
 ): FilteredMatch[] {
   const seen = new Set<string>();
   const out: FilteredMatch[] = [];
@@ -212,7 +286,7 @@ export function filterMatches(
     // Same shop as the original isn't an alternative, it's the same thing.
     if (host === originalRetailer || originalRetailer.includes(host)) continue;
 
-    const price = parsePrice(match.price);
+    const price = parsePrice(match.price, fallbackCurrency);
     if (!price) continue;
 
     const source = (match.source ?? host).trim();
@@ -234,8 +308,19 @@ export function filterMatches(
     });
   }
 
-  // §10.1 step 4 — cheapest first. That ordering is the whole feature.
-  out.sort((a, b) => a.price.amount - b.price.amount);
+  // §10.1 step 4 — cheapest first. That ordering is the whole feature, but
+  // comparing 1299 ZAR against 45 USD by raw number would rank noise above
+  // real savings, so anything priced in the garment's own currency sorts
+  // first, cheapest within that, and the rest follow.
+  out.sort((a, b) => {
+    const aHome = a.price.currency === fallbackCurrency ? 0 : 1;
+    const bHome = b.price.currency === fallbackCurrency ? 0 : 1;
+    if (aHome !== bHome) return aHome - bHome;
+    if (a.price.currency !== b.price.currency) {
+      return a.price.currency.localeCompare(b.price.currency);
+    }
+    return a.price.amount - b.price.amount;
+  });
   return out;
 }
 
@@ -306,17 +391,22 @@ export async function lookupAlternatives(
   // GET and is a different problem from §2.2, where Perfect Corp's fetcher is
   // the one getting blocked.
   const imageUrl = garment.source_image_url;
+  const market = marketFor(garment);
+  console.log(
+    `[hanger] alternatives for "${garment.title.slice(0, 40)}" — market ${market.country}, currency ${market.currency}`,
+  );
 
   if (imageUrl) {
     const body = await callSerpApi({
       engine: 'google_lens',
       url: imageUrl,
       type: 'visual_matches',
-      country: 'gb',
+      country: market.country,
     });
     const matches = filterMatches(
       (body.visual_matches ?? []) as LensMatch[],
       garment.retailer,
+      market.currency,
     );
     if (matches.length > 0) return {matches, usedTextFallback: false};
     console.log('[hanger] Lens gave nothing usable; falling back to a text search');
@@ -325,14 +415,14 @@ export async function lookupAlternatives(
   const body = await callSerpApi({
     engine: 'google_shopping',
     q: searchTermsFrom(garment),
-    gl: 'uk',
+    gl: market.gl,
     hl: 'en',
   });
 
   // Shopping results carry the same fields under a different key.
   const shopping = (body.shopping_results ?? body.visual_matches ?? []) as LensMatch[];
   return {
-    matches: filterMatches(shopping, garment.retailer),
+    matches: filterMatches(shopping, garment.retailer, market.currency),
     usedTextFallback: true,
   };
 }
