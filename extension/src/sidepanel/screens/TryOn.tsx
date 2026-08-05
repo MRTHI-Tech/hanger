@@ -26,7 +26,7 @@ import {
 } from '../../shared/types';
 import {formatPrice} from '../format';
 
-type Phase = 'idle' | 'fetching' | 'running' | 'done' | 'failed';
+type Phase = 'idle' | 'fetching' | 'keeping' | 'running' | 'done' | 'kept' | 'failed';
 
 const CATEGORY_OPTIONS = (
   Object.keys(CATEGORY_LABELS) as GarmentCategory[]
@@ -37,6 +37,7 @@ export function TryOn({
   tabId,
   person,
   onHung,
+  onSaved,
   onClearProduct,
   onOpenHanger,
   onFindAlternatives,
@@ -45,6 +46,8 @@ export function TryOn({
   tabId: number | null;
   person: Person;
   onHung: (garment: Garment) => void;
+  /** Something changed in Your Hanger, but stay on this screen. */
+  onSaved: () => void;
   onClearProduct: () => void;
   onOpenHanger: () => void;
   onFindAlternatives: (garment: Garment) => void;
@@ -61,6 +64,12 @@ export function TryOn({
   const [cached, setCached] = useState(false);
   const [hung, setHung] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  // What the saved row was built from. Changing either means the stored
+  // garment no longer describes what's on screen, so it can't be reused.
+  const [savedAs, setSavedAs] = useState<{
+    category: GarmentCategory;
+    imageIndex: number;
+  } | null>(null);
   const pollTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -71,6 +80,7 @@ export function TryOn({
     setGarment(null);
     setResultUrl(null);
     setHung(false);
+    setSavedAs(null);
   }, [product]);
 
   useEffect(
@@ -92,42 +102,89 @@ export function TryOn({
     return 'Trousers and dresses need a photo of someone wearing them — pick one showing the full leg.';
   }, [product, selectedImage, category]);
 
+  /**
+   * Pulls the photo out of the page and creates the garment row. Reuses the
+   * row from a previous save when nothing that went into it has changed, so
+   * "keep it, then fit it" doesn't leave two copies in Your Hanger.
+   */
+  async function saveGarment(hang: boolean): Promise<Garment> {
+    if (!product) throw new HangerError('invalid_request', 'Nothing to save.');
+    const image = product.images[selectedImage];
+    if (!image) throw new HangerError('invalid_request', 'Pick a photo first.');
+
+    const reusable =
+      garment != null &&
+      savedAs != null &&
+      savedAs.category === category &&
+      savedAs.imageIndex === selectedImage;
+
+    if (reusable && garment) {
+      // Already stored. If this is the moment it's being kept, flip the flag
+      // rather than storing the same garment twice.
+      return hang && !garment.hung ? api.hangGarment(garment.id) : garment;
+    }
+
+    if (tabId == null) {
+      throw new HangerError(
+        'no_tab',
+        'Open the product page again so Hanger can read the photo from it.',
+      );
+    }
+
+    // §2.2 — bytes come out of the page, never a URL handed to the API.
+    const fetched = await fetchImageViaTab(tabId, image.url);
+    const blob = dataUrlToBlob(fetched.dataUrl);
+
+    const saved = await api.saveGarment(blob, {
+      title: product.title,
+      brand: product.brand,
+      retailer: product.retailer,
+      productUrl: product.productUrl,
+      price: product.price,
+      category,
+      sourceImageUrl: image.url,
+      hang,
+    });
+    setSavedAs({category, imageIndex: selectedImage});
+    return saved;
+  }
+
+  /** Keep it without fitting it — the outfit-building path (§11). */
+  async function keep() {
+    if (!product) return;
+    setError(null);
+    setPhase('keeping');
+
+    try {
+      const saved = await saveGarment(true);
+      setGarment(saved);
+      setHung(true);
+      setPhase('kept');
+      onSaved();
+    } catch (e) {
+      setError(e);
+      setPhase('failed');
+    }
+  }
+
   async function run() {
     if (!product) return;
-    const image = product.images[selectedImage];
-    if (!image) return;
 
     setError(null);
     setPhase('fetching');
     setElapsed(0);
 
     try {
-      if (tabId == null) {
-        throw new HangerError(
-          'no_tab',
-          'Open the product page again so Hanger can read the photo from it.',
-        );
-      }
-
-      // §2.2 — bytes come out of the page, never a URL handed to the API.
-      const fetched = await fetchImageViaTab(tabId, image.url);
-      const blob = dataUrlToBlob(fetched.dataUrl);
-
-      const saved = await api.saveGarment(blob, {
-        title: product.title,
-        brand: product.brand,
-        retailer: product.retailer,
-        productUrl: product.productUrl,
-        price: product.price,
-        category,
-        sourceImageUrl: image.url,
-      });
+      // Bags, hats and scarves can be kept but not fitted (§2.4, §11), so the
+      // only thing this button can mean for them is "keep it".
+      const tryable = isTryOnable(category);
+      const saved = await saveGarment(!tryable);
       setGarment(saved);
+      setHung(Boolean(saved.hung));
 
-      if (!isTryOnable(category)) {
-        // Bags, hats and scarves can be kept but not fitted (§2.4, §11).
-        setPhase('done');
-        setResultUrl(null);
+      if (!tryable) {
+        setPhase('kept');
+        onSaved();
         return;
       }
 
@@ -237,16 +294,13 @@ export function TryOn({
             garment ? () => onFindAlternatives(garment) : undefined
           }
         />
-      ) : phase === 'done' && !resultUrl ? (
-        <Banner
-          status="info"
-          title="Kept, not fitted"
-          description={`We can't fit a ${CATEGORY_LABELS[
-            category
-          ].toLowerCase()} onto a photo, but it's in Your Hanger with its price and link.`}
-          endContent={
-            <Button label="Hang it" variant="secondary" size="sm" onClick={hangIt} />
-          }
+      ) : phase === 'kept' && garment ? (
+        <Kept
+          garment={garment}
+          onOpenHanger={onOpenHanger}
+          onTryOnNow={isTryOnable(garment.category) ? run : undefined}
+          onFindAlternatives={() => onFindAlternatives(garment)}
+          onDone={onClearProduct}
         />
       ) : (
         <>
@@ -291,7 +345,7 @@ export function TryOn({
             />
           )}
 
-          {phase === 'fetching' || phase === 'running' ? (
+          {phase === 'fetching' || phase === 'running' || phase === 'keeping' ? (
             <Progress phase={phase} elapsed={elapsed} title={product.title} />
           ) : (
             <VStack gap={2}>
@@ -300,6 +354,15 @@ export function TryOn({
                 variant="primary"
                 onClick={run}
               />
+              {/* Building an outfit means collecting pieces first and fitting
+                  them together later, so keeping one must not cost a call. */}
+              {isTryOnable(category) && (
+                <Button
+                  label="Add to Your Hanger"
+                  variant="secondary"
+                  onClick={keep}
+                />
+              )}
               <Button label="Not this one" variant="ghost" onClick={onClearProduct} />
             </VStack>
           )}
@@ -320,24 +383,104 @@ function Progress({
 }) {
   const seconds = Math.round(elapsed / 1000);
   const label =
-    phase === 'fetching'
-      ? 'Getting the photo from the shop'
-      : seconds < 8
-        ? `Fitting the ${shortTitle(title)}`
-        : seconds < 20
-          ? 'Getting the drape right'
-          : 'Nearly there';
+    phase === 'keeping'
+      ? 'Putting it in Your Hanger'
+      : phase === 'fetching'
+        ? 'Getting the photo from the shop'
+        : seconds < 8
+          ? `Fitting the ${shortTitle(title)}`
+          : seconds < 20
+            ? 'Getting the drape right'
+            : 'Nearly there';
 
   return (
     <Card variant="muted">
       <VStack gap={2}>
         <Text type="label">{label}</Text>
         <ProgressBar label={label} isLabelHidden isIndeterminate />
-        <Text type="supporting" size="3xs">
-          This usually takes 15 to 40 seconds.
-        </Text>
+        {/* Keeping is a download and a database write; only a fitting is slow. */}
+        {phase !== 'keeping' && (
+          <Text type="supporting" size="3xs">
+            This usually takes 15 to 40 seconds.
+          </Text>
+        )}
       </VStack>
     </Card>
+  );
+}
+
+/**
+ * Kept without a fitting — either deliberately, or because the category can't
+ * be fitted at all. Both need somewhere to go next (§13: every screen offers
+ * an action).
+ */
+function Kept({
+  garment,
+  onOpenHanger,
+  onTryOnNow,
+  onFindAlternatives,
+  onDone,
+}: {
+  garment: Garment;
+  onOpenHanger: () => void;
+  onTryOnNow?: () => void;
+  onFindAlternatives: () => void;
+  onDone: () => void;
+}) {
+  const fittable = isTryOnable(garment.category);
+
+  return (
+    <VStack gap={3}>
+      <Banner
+        status="success"
+        title="It's in Your Hanger"
+        description={
+          fittable
+            ? 'Kept without fitting it. Add a few more pieces and combine them into an outfit, or try it on whenever you like.'
+            : `We can't fit a ${CATEGORY_LABELS[
+                garment.category
+              ].toLowerCase()} onto a photo, but it's kept with its price and link.`
+        }
+      />
+
+      <Card padding={3}>
+        <HStack gap={3} vAlign="center">
+          <div
+            className="shrink-0 overflow-hidden rounded-lg"
+            style={{
+              width: 56,
+              height: 72,
+              backgroundColor: 'var(--color-background-muted)',
+              border: '1px solid var(--color-border)',
+            }}>
+            <img
+              src={mediaUrl(garment.imageUrl)}
+              alt=""
+              className="h-full w-full"
+              style={{objectFit: 'cover'}}
+            />
+          </div>
+          <VStack gap={0.5}>
+            <Text type="supporting" size="3xs" color="primary" maxLines={2}>
+              {garment.title}
+            </Text>
+            <Text type="supporting" size="3xs">
+              {CATEGORY_LABELS[garment.category]}
+              {garment.price ? ` · ${formatPrice(garment.price)}` : ''}
+            </Text>
+          </VStack>
+        </HStack>
+      </Card>
+
+      <VStack gap={2}>
+        <Button label="Keep shopping" variant="primary" onClick={onDone} />
+        {onTryOnNow && (
+          <Button label="Try it on now" variant="secondary" onClick={onTryOnNow} />
+        )}
+        <Button label="See Your Hanger" variant="secondary" onClick={onOpenHanger} />
+        <Button label="Find it cheaper" variant="ghost" onClick={onFindAlternatives} />
+      </VStack>
+    </VStack>
   );
 }
 

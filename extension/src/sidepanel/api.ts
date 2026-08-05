@@ -143,6 +143,8 @@ export interface SaveGarmentMeta {
   price: {amount: number; currency: string} | null;
   category: GarmentCategory;
   sourceImageUrl: string | null;
+  /** Keep it in Your Hanger straight away, without a try-on first. */
+  hang?: boolean;
 }
 
 export function mediaUrl(pathOrUrl: string): string {

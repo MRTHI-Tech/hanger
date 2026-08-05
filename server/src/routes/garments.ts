@@ -28,6 +28,13 @@ const metaSchema = z.object({
     'scarf',
   ]),
   sourceImageUrl: z.string().url().nullable().optional(),
+  /**
+   * True when the garment is being kept deliberately rather than created as a
+   * side effect of a try-on. Defaults false so the try-on path keeps its old
+   * behaviour: the row exists because the API needs an id, but Your Hanger
+   * stays empty until "Hang it" (§004_hung_flag).
+   */
+  hang: z.boolean().optional(),
 });
 
 export function garmentJson(row: GarmentRow) {
@@ -120,11 +127,13 @@ garmentRoutes.post('/', async (c) => {
   const id = randomUUID();
   const path = save(bytes, extForContentType(image.type || 'image/jpeg'));
 
+  const hang = meta.data.hang === true;
+
   db.prepare(
     `INSERT INTO garment
        (id, title, brand, retailer, product_url, price_amount, price_currency,
-        category, image_path, source_image_url, saved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        category, image_path, source_image_url, hung, saved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     meta.data.title,
@@ -136,11 +145,12 @@ garmentRoutes.post('/', async (c) => {
     meta.data.category,
     path,
     meta.data.sourceImageUrl ?? null,
+    hang ? 1 : 0,
     Date.now(),
   );
 
   console.log(
-    `[hanger] hung: ${meta.data.title} (${meta.data.category}) from ${meta.data.retailer}`,
+    `[hanger] ${hang ? 'hung' : 'scraped'}: ${meta.data.title} (${meta.data.category}) from ${meta.data.retailer}`,
   );
 
   return c.json(garmentJson(getGarmentRow(id)));

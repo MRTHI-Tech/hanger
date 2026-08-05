@@ -157,6 +157,8 @@ export function App() {
             setDataVersion((v) => v + 1);
             setTab('hanger');
           }}
+          // Kept, but the panel stays put — they're likely still shopping.
+          onSaved={() => setDataVersion((v) => v + 1)}
           onClearProduct={() => setProduct(null)}
           onOpenHanger={() => setTab('hanger')}
           onFindAlternatives={setAlternativesFor}
