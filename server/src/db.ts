@@ -11,6 +11,57 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 /**
+ * The entities 014 unescapes, and the order it does it in — `&amp;` last, so a
+ * stored "&amp;#39;" comes out as "&#39;" rather than being decoded the whole
+ * way in one pass and turning a literal ampersand into something else. Only
+ * what shops actually emit in a product name: this is a one-off repair, not the
+ * general decoder in @hanger/shared/text. A bare '&' is left alone, so brands
+ * like H&M survive.
+ *
+ * Frozen: a migration that has already run must keep meaning what it meant.
+ */
+const ENTITY_BACKFILL: [string, string][] = [
+  ['&#39;', "'"],
+  ['&#039;', "'"],
+  ['&apos;', "'"],
+  ['&#34;', '"'],
+  ['&quot;', '"'],
+  ['&#8217;', '’'],
+  ['&rsquo;', '’'],
+  ['&#8216;', '‘'],
+  ['&lsquo;', '‘'],
+  ['&#8220;', '“'],
+  ['&ldquo;', '“'],
+  ['&#8221;', '”'],
+  ['&rdquo;', '”'],
+  ['&ndash;', '–'],
+  ['&mdash;', '—'],
+  ['&hellip;', '…'],
+  ['&nbsp;', ' '],
+  ['&lt;', '<'],
+  ['&gt;', '>'],
+  ['&#38;', '&'],
+  ['&amp;', '&'],
+];
+
+/**
+ * `UPDATE <table> SET col = <nested REPLACEs>` for the listed columns. Nested
+ * REPLACE()s are the only way SQLite has to say this. NULL columns stay NULL —
+ * REPLACE(NULL, …) is NULL.
+ */
+function entityDecodeSql(table: string, columns: string[]): string {
+  const decode = (column: string) =>
+    ENTITY_BACKFILL.reduce(
+      (expr, [entity, char]) =>
+        `REPLACE(${expr}, '${entity}', '${char.replace(/'/g, "''")}')`,
+      column,
+    );
+  const sets = columns.map((c) => `${c} = ${decode(c)}`).join(',\n        ');
+  const where = columns.map((c) => `${c} LIKE '%&%'`).join(' OR ');
+  return `UPDATE ${table} SET\n        ${sets}\n      WHERE ${where};`;
+}
+
+/**
  * Migrations run on boot. Append-only: add a new entry, never edit an old one.
  */
 const MIGRATIONS: {name: string; sql: string}[] = [
@@ -329,6 +380,18 @@ const MIGRATIONS: {name: string; sql: string}[] = [
       -- they used is the one 'lookbook' still sends.
       ALTER TABLE outfit ADD COLUMN video_pose TEXT;
       UPDATE outfit SET video_pose = 'lookbook' WHERE video_path IS NOT NULL;
+    `,
+  },
+  {
+    name: '014_decode_entities',
+    sql: `
+      -- Titles were stored exactly as the shop's JSON-LD spelled them, so a
+      -- garment hung before the scraper learned to decode still reads
+      -- "Men&apos;s Stone Tapered Pant" in Your Hanger and in every buy list.
+      -- New rows are decoded on the way in now — at the scraper, at the API,
+      -- and on SerpApi's strings — so these are the ones already sitting here.
+      ${entityDecodeSql('garment', ['title', 'brand', 'retailer'])}
+      ${entityDecodeSql('alternative', ['title', 'source'])}
     `,
   },
 ];

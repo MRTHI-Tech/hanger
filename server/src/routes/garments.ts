@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {Hono} from 'hono';
 import {z} from 'zod';
+import {cleanText, cleanTextOrNull} from '@hanger/shared/text';
 import {db} from '../db.js';
 import {validateImage} from '../images.js';
 import {extForContentType, mediaUrl, remove, save} from '../storage.js';
@@ -143,6 +144,12 @@ garmentRoutes.post('/', async (c) => {
 
   const hang = meta.data.hang === true;
 
+  // What the shop's markup said, in real text. The scraper decodes already;
+  // this is what keeps an older extension build from storing "&apos;".
+  const title = cleanText(meta.data.title);
+  const brand = cleanTextOrNull(meta.data.brand);
+  const retailer = cleanText(meta.data.retailer);
+
   db.prepare(
     `INSERT INTO garment
        (id, user_id, title, brand, retailer, product_url, price_amount,
@@ -152,9 +159,9 @@ garmentRoutes.post('/', async (c) => {
   ).run(
     id,
     user.id,
-    meta.data.title,
-    meta.data.brand ?? null,
-    meta.data.retailer,
+    title,
+    brand,
+    retailer,
     meta.data.productUrl,
     meta.data.price?.amount ?? null,
     meta.data.price?.currency ?? null,
@@ -166,7 +173,7 @@ garmentRoutes.post('/', async (c) => {
   );
 
   console.log(
-    `[hanger] ${hang ? 'hung' : 'scraped'}: ${meta.data.title} (${meta.data.category}) from ${meta.data.retailer}`,
+    `[hanger] ${hang ? 'hung' : 'scraped'}: ${title} (${meta.data.category}) from ${retailer}`,
   );
 
   return c.json(garmentJson(getGarmentRow(user.id, id)));

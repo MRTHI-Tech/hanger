@@ -1,3 +1,4 @@
+import {decodeEntities} from '@hanger/shared/text';
 import type {
   GarmentCategory,
   Price,
@@ -258,8 +259,15 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * The single chokepoint every scraped string passes through, so decoding lives
+ * here rather than at each call site. Decode before collapsing whitespace —
+ * `&nbsp;` is whitespace once it's a character.
+ */
 function clean(text: string | null | undefined): string {
-  return (text ?? '').replace(/\s+/g, ' ').trim();
+  return decodeEntities(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -737,7 +745,7 @@ export async function scrapeProduct(): Promise<ScrapedProduct> {
   return {
     title,
     brand: extractBrand(product),
-    retailer: location.hostname.replace(/^www\d?\./, ''),
+    retailer: clean(location.hostname.replace(/^www\d?\./, '')),
     productUrl: location.href.split('#')[0],
     price: extractPrice(product),
     category,

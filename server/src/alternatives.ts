@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
+import {cleanText} from '@hanger/shared/text';
 import {db} from './db.js';
 import {env, mockMode} from './env.js';
 import {CodedError} from './youcam/errors.js';
@@ -334,7 +335,8 @@ export function filterMatches(
 
   for (const match of matches) {
     const link = typeof match.link === 'string' ? match.link : null;
-    const title = typeof match.title === 'string' ? match.title.trim() : '';
+    // Lens lifts its titles out of the shop's own markup, entities and all.
+    const title = typeof match.title === 'string' ? cleanText(match.title) : '';
     if (!link || !title) continue;
 
     const host = hostOf(link);
@@ -349,7 +351,7 @@ export function filterMatches(
     const price = parsePrice(match.price, fallbackCurrency);
     if (!price) continue;
 
-    const source = (match.source ?? host).trim();
+    const source = cleanText(match.source ?? host);
     const key = `${source.toLowerCase()}|${normaliseTitle(title)}`;
     if (seen.has(key)) continue;
     seen.add(key);

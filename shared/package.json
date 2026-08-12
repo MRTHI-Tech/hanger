@@ -8,6 +8,7 @@
     "./types": "./src/types.ts",
     "./api": "./src/api.ts",
     "./format": "./src/format.ts",
+    "./text": "./src/text.ts",
     "./theme": "./src/theme/butterTheme.ts",
     "./illustrations": "./src/illustrations/pose.tsx",
     "./scripts/icon.mjs": "./scripts/icon.mjs"
