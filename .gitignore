@@ -19,3 +19,8 @@ pwa/public/fonts/
 
 # Extension signing key: pins the extension id so Clerk can allow it.
 extension/key.pem
+
+# Vendored agent skills (npx skills add). Tooling, not the product.
+.agents/
+.claude/skills/
+skills-lock.json
