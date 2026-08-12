@@ -187,10 +187,53 @@ function MissingSyncHost() {
   );
 }
 
+/**
+ * How long Clerk gets to load before we assume it isn't going to.
+ *
+ * Everything below the provider waits on `isLoaded`, and `isLoaded` never
+ * becomes true if the sync host can't be reached — which is a spinner that
+ * spins until the panel is closed, with the real cause sitting in a devtools
+ * console the person looking at it has no reason to open. Ten seconds is well
+ * past a slow cold start and well short of giving up on it.
+ */
+const LOAD_TIMEOUT_MS = 10_000;
+
 function AuthLoading() {
+  const [stalled, setStalled] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStalled(true), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (stalled) return <AuthStalled />;
+
   return (
     <VStack height="100%" padding={4} gap={3} vAlign="center" hAlign="center">
       <Spinner label="Opening Your Hanger" />
+    </VStack>
+  );
+}
+
+/**
+ * Names the host rather than describing the failure, because there is only
+ * really one cause: sign-in lives on the phone app, and the phone app isn't
+ * answering. In development that is almost always `npm run dev:phone` not
+ * running yet.
+ */
+function AuthStalled() {
+  return (
+    <VStack height="100%" padding={4} gap={3} vAlign="center" hAlign="center">
+      <Heading level={2}>Can't reach sign-in</Heading>
+      <Text type="supporting">
+        The panel signs in through the Hanger app at {SYNC_HOST ?? 'an unset address'},
+        and it isn't answering. Start it and try again.
+      </Text>
+      <Button
+        label="Try again"
+        variant="secondary"
+        onClick={() => window.location.reload()}
+      />
     </VStack>
   );
 }
