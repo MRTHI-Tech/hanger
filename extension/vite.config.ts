@@ -7,6 +7,16 @@ import {fileURLToPath} from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
+ * Watch mode runs this build alongside the content script's (npm run dev, in
+ * parallel), and they share dist/. Emptying it on every panel rebuild deletes
+ * the sibling's content.js, which Chrome then refuses the whole extension for —
+ * and because the content watcher only re-emits when its own sources change,
+ * the file stays gone. A one-shot build still cleans, because there both builds
+ * run in sequence and the content script is written last.
+ */
+const watching = process.argv.includes('--watch');
+
+/**
  * Main extension build: the side panel page and the MV3 service worker.
  * Both may be ES modules. The content script is built separately
  * (vite.content.config.ts) because content scripts cannot be modules.
@@ -36,7 +46,7 @@ export default defineConfig(({mode}) => {
     },
     build: {
       outDir: 'dist',
-      emptyOutDir: true,
+      emptyOutDir: !watching,
       target: 'esnext',
       sourcemap: false,
       rollupOptions: {
