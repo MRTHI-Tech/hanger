@@ -88,18 +88,45 @@ export function userForAuthId(authId: string): User | null {
 /**
  * First sight of somebody who has signed in. There is no sign-up step in this
  * product — the first request carrying a valid session is the sign-up.
+ *
+ * Which means the sign-up races itself. A client opening cold fires several
+ * requests at once — the phone asks who it is, then for health and the person
+ * photo together — and each one resolves the same brand-new session. They all
+ * look for the user, all miss, and all try to create them. The window is real
+ * rather than theoretical because clerk.ts awaits Clerk's profile API between
+ * the miss and the insert, which is ample time for the others to catch up.
+ *
+ * Losing that race is not an error, so it no longer reads as one: whoever gets
+ * there first writes the row and the rest find it. Enforced by the unique index
+ * on auth_id, because it is the only thing here that can actually promise it —
+ * checking first is what every one of those requests already did.
  */
 export function createUserForAuthId(
   authId: string,
   details: {email?: string | null; name?: string | null} = {},
 ): User {
   const id = randomUUID();
-  db.prepare(
-    `INSERT INTO user (id, auth_id, email, name, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(id, authId, details.email ?? null, details.name ?? null, Date.now());
-  console.log(`[hanger] new user: ${details.email ?? authId}`);
-  return getUser(id)!;
+  const result = db
+    .prepare(
+      `INSERT INTO user (id, auth_id, email, name, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(auth_id) DO NOTHING`,
+    )
+    .run(id, authId, details.email ?? null, details.name ?? null, Date.now());
+
+  // Only the request that actually wrote the row announces the person, so a
+  // cold open doesn't log the same new user four times.
+  if (result.changes > 0) {
+    console.log(`[hanger] new user: ${details.email ?? authId}`);
+  }
+
+  // Read back by auth_id, not by the id generated above: on a conflict the row
+  // that exists belongs to whichever request won, and carries *its* id.
+  const user = userForAuthId(authId);
+  if (!user) {
+    throw new Error(`user ${authId} missing immediately after insert`);
+  }
+  return user;
 }
 
 /** Sign-in details drift — a changed email should follow the person here. */
