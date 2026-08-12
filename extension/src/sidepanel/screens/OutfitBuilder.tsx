@@ -10,24 +10,30 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {Divider} from '@astryxdesign/core/Divider';
 import {ProgressBar} from '@astryxdesign/core/ProgressBar';
 import {Spinner} from '@astryxdesign/core/Spinner';
+import {RadioList, RadioListItem} from '@astryxdesign/core/RadioList';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
-import {api, mediaUrl} from '../api';
+import {api, mediaUrl} from '@hanger/shared/api';
 import {GarmentCard} from '../components/GarmentCard';
+import {Sheet} from '../components/Sheet';
 import {OutfitSlotRow} from '../components/OutfitSlot';
 import {BeforeAfter} from '../components/BeforeAfter';
 import {ErrorNote} from '../components/ErrorNote';
-import {formatAmount, formatPrice} from '../format';
+import {formatAmount, formatPrice} from '@hanger/shared/format';
 import {
+  DEFAULT_VIDEO_POSE,
   isOwned,
   SLOT_CATEGORIES,
   SLOT_LABELS,
   SLOT_ORDER,
+  videoPoseLabel,
+  VIDEO_POSES,
   type Garment,
   type Outfit,
   type OutfitSlot,
   type OutfitVideo,
   type Person,
-} from '../../shared/types';
+  type VideoPose,
+} from '@hanger/shared/types';
 
 type Filled = Partial<Record<OutfitSlot, Garment>>;
 
@@ -447,6 +453,15 @@ function ShareVideo({
   );
   /** Set by "Back to the photo" — the video still exists, we're just not on it. */
   const [showStill, setShowStill] = useState(false);
+  /**
+   * The motion, asked for on the way in rather than sat next to the button.
+   * `chosen` is only what the open sheet is showing: nothing is committed until
+   * it's confirmed, so backing out of the sheet leaves the video alone.
+   */
+  const [asking, setAsking] = useState(false);
+  const [chosen, setChosen] = useState<VideoPose>(
+    outfit.video?.pose ?? DEFAULT_VIDEO_POSE,
+  );
   const [error, setError] = useState<unknown>(null);
   const pollTimer = useRef<number | null>(null);
 
@@ -470,13 +485,17 @@ function ShareVideo({
     }, 1400);
   }
 
-  async function make() {
+  /** Takes the pose rather than reading state: it's called as the sheet closes. */
+  async function make(pose: VideoPose) {
     setError(null);
+    setAsking(false);
+    setShowStill(false);
     setVideo({status: 'running'});
     try {
-      const next = await api.createOutfitVideo(outfit.id);
+      const next = await api.createOutfitVideo(outfit.id, pose);
       setVideo(next.video ?? {status: 'running'});
-      poll();
+      // A cached pose comes back finished, with nothing left to wait for.
+      if (next.video?.status !== 'success') poll();
     } catch (e) {
       setError(e);
       setVideo({status: 'idle'});
@@ -484,6 +503,25 @@ function ShareVideo({
   }
 
   const done = video.status === 'success' && Boolean(video.url);
+
+  /** Opens the sheet on whatever is playing, so it reads as "change this". */
+  function ask() {
+    setChosen(video.pose ?? DEFAULT_VIDEO_POSE);
+    setAsking(true);
+  }
+
+  // One sheet for both entry points — "Generate video" and "Try another
+  // motion" are the same question, asked before anything is spent.
+  const poseSheet = (
+    <Sheet title="How should they move?" isOpen={asking} onClose={() => setAsking(false)}>
+      <PosePicker
+        chosen={chosen}
+        onChoose={setChosen}
+        current={done ? video.pose : undefined}
+        onConfirm={() => void make(chosen)}
+      />
+    </Sheet>
+  );
 
   // Once there's a video it takes over the image area — it *is* the outfit,
   // moving, and stacking it under the still would ask which one to look at.
@@ -505,6 +543,22 @@ function ShareVideo({
             onClick={() => setShowStill(true)}
           />
         </HStack>
+
+        {/* Named rather than shown as a control: the motion it's playing is a
+            fact about this video, and changing it is a separate decision. */}
+        <HStack justify="between" vAlign="center">
+          <Text type="supporting">
+            {video.pose ? videoPoseLabel(video.pose) : 'Lookbook'}
+          </Text>
+          <Button
+            label="Try another motion"
+            variant="ghost"
+            size="sm"
+            onClick={ask}
+          />
+        </HStack>
+
+        {poseSheet}
       </VStack>
     );
   }
@@ -541,11 +595,14 @@ function ShareVideo({
               onClick={() => setShowStill(false)}
             />
           ) : (
+            // Asks first. The motion is the one thing about the video that
+            // can't be changed once it's paid for, so it's the one question
+            // worth interrupting for.
             <Button
               label="Generate video"
               variant="primary"
               size="sm"
-              onClick={() => void make()}
+              onClick={ask}
             />
           )
         }
@@ -558,7 +615,7 @@ function ShareVideo({
           error={error}
           title="That video didn't work"
           actionLabel="Try again"
-          onAction={() => void make()}
+          onAction={ask}
         />
       )}
 
@@ -574,11 +631,74 @@ function ShareVideo({
               ? video.message
               : 'Your outfit is fine and still saved — only the video failed.'
           }
-          endContent={
-            <Button label="Try again" variant="ghost" onClick={() => void make()} />
-          }
+          endContent={<Button label="Try again" variant="ghost" onClick={ask} />}
         />
       )}
+
+      {poseSheet}
+    </VStack>
+  );
+}
+
+/**
+ * The contents of the pose sheet.
+ *
+ * All four motions with what each one does, rather than a dropdown showing one
+ * description at a time: the sheet is the moment somebody is deciding, and it
+ * has the room to answer the question it just asked.
+ */
+function PosePicker({
+  chosen,
+  onChoose,
+  current,
+  onConfirm,
+}: {
+  chosen: VideoPose;
+  onChoose: (pose: VideoPose) => void;
+  /** The motion already rendered, when there is one. */
+  current?: VideoPose;
+  onConfirm: () => void;
+}) {
+  const alreadyHave = current !== undefined && current === chosen;
+
+  return (
+    <VStack gap={3}>
+      <VStack gap={1}>
+        <Heading level={3}>How should they move?</Heading>
+        <Text type="supporting">
+          {current === undefined
+            ? 'A few seconds of motion, to send someone.'
+            : 'A different motion is a new video — about another minute.'}
+        </Text>
+      </VStack>
+
+      <RadioList
+        label="How should they move?"
+        isLabelHidden
+        value={chosen}
+        onChange={(v) => onChoose(v as VideoPose)}>
+        {VIDEO_POSES.map((option) => (
+          <RadioListItem
+            key={option.value}
+            value={option.value}
+            label={option.label}
+            description={option.description}
+          />
+        ))}
+      </RadioList>
+
+      <Button
+        label={
+          alreadyHave
+            ? 'You already have this one'
+            : current === undefined
+              ? 'Make the video'
+              : `Make the ${videoPoseLabel(chosen).toLowerCase()} one`
+        }
+        variant="primary"
+        isDisabled={alreadyHave}
+        onClick={onConfirm}
+      />
     </VStack>
   );
 }

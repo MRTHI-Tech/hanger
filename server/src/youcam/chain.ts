@@ -65,6 +65,7 @@ const SLOT_VERBS: Record<OutfitSlot, string> = {
 };
 
 export async function runChain(
+  userId: string,
   person: PersonRow,
   items: ChainItem[],
   onProgress: (progress: ChainProgress) => void,
@@ -114,12 +115,12 @@ export async function runChain(
       const srcFileId =
         currentFileId ??
         (currentPath
-          ? await uploadStep(key, currentPath)
-          : await personFileId(person));
+          ? await uploadStep(userId, key, currentPath)
+          : await personFileId(userId, person));
 
-      const refFileId = await garmentFileId(item.garment);
+      const refFileId = await garmentFileId(userId, item.garment);
 
-      const {resultPath} = await runCloth({
+      const {resultPath} = await runCloth(userId, {
         srcFileId,
         refFileId,
         category: item.category,
@@ -152,9 +153,18 @@ export async function runChain(
 }
 
 /** Uploads an intermediate result and remembers its file id for reuse. */
-async function uploadStep(cacheKey: string, path: string): Promise<string> {
+async function uploadStep(
+  userId: string,
+  cacheKey: string,
+  path: string,
+): Promise<string> {
   const bytes = read(path);
-  const fileId = await uploadImage(bytes, contentTypeForExt(path), 'step.jpg');
+  const fileId = await uploadImage(
+    userId,
+    bytes,
+    contentTypeForExt(path),
+    'step.jpg',
+  );
   setChainStepFileId(cacheKey, fileId);
   return fileId;
 }

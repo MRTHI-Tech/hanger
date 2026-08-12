@@ -7,7 +7,7 @@ import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Spinner} from '@astryxdesign/core/Spinner';
-import {api, mediaUrl} from '../api';
+import {api, mediaUrl} from '@hanger/shared/api';
 import {checkPersonPhoto} from '../imageChecks';
 import {PoseGuide} from '../components/PoseGuide';
 import {CameraCapture} from '../components/CameraCapture';

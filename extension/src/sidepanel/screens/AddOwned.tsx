@@ -8,7 +8,7 @@ import {Card} from '@astryxdesign/core/Card';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {TextInput} from '@astryxdesign/core/TextInput';
-import {api} from '../api';
+import {api} from '@hanger/shared/api';
 import {checkGarmentPhoto} from '../imageChecks';
 import {GarmentGuide} from '../components/GarmentGuide';
 import {CameraCapture} from '../components/CameraCapture';
@@ -19,7 +19,7 @@ import {
   OWNABLE,
   type Garment,
   type TryOnCategory,
-} from '../../shared/types';
+} from '@hanger/shared/types';
 
 type Stage = 'photo' | 'camera' | 'phone' | 'checking' | 'details' | 'saving';
 

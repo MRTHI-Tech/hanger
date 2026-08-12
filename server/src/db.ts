@@ -208,6 +208,129 @@ const MIGRATIONS: {name: string; sql: string}[] = [
       ALTER TABLE garment_new RENAME TO garment;
     `,
   },
+  {
+    name: '009_paired_devices',
+    sql: `
+      -- A phone that has been let in. Until now the only client was the side
+      -- panel, running on this machine, and reaching localhost was proof
+      -- enough of who you were. A phone is a different machine, so it has to
+      -- carry something instead: a token it got by proving, once, that it had
+      -- physical sight of a code on the laptop's screen.
+      --
+      -- This is not accounts. There is still one hanger, and this table only
+      -- says which devices may look at it.
+      CREATE TABLE device (
+        id           TEXT PRIMARY KEY,
+        token        TEXT NOT NULL UNIQUE,
+        name         TEXT NOT NULL,
+        paired_at    INTEGER NOT NULL,
+        last_seen_at INTEGER
+      );
+    `,
+  },
+  {
+    name: '010_users',
+    sql: `
+      -- Until now there was one wardrobe, belonging to whoever was sitting at
+      -- this machine. That works exactly as long as the server is your laptop.
+      -- On a public URL it means every visitor shares one hanger, sees one
+      -- another's clothes, and spends one budget.
+      --
+      -- So everything that is somebody's now says whose it is. The wardrobe,
+      -- the photo of them, the outfits built from it, and the phones let in.
+      CREATE TABLE user (
+        id          TEXT PRIMARY KEY,
+        -- The id our sign-in provider knows them by. Null for the local user a
+        -- development machine runs as, which never signs in to anything.
+        auth_id     TEXT UNIQUE,
+        email       TEXT,
+        name        TEXT,
+        -- Per-person spend, so one enthusiastic visitor can't empty the budget
+        -- before the next one arrives. Null cap means "use the server default".
+        units_spent INTEGER NOT NULL DEFAULT 0,
+        unit_cap    INTEGER,
+        created_at  INTEGER NOT NULL
+      );
+
+      -- Added nullable because SQLite cannot add a NOT NULL column to a table
+      -- with rows in it. Every write sets it; every read filters on it. The
+      -- backfill below leaves nothing null, and the indexes make the filter
+      -- free rather than a full scan.
+      ALTER TABLE person  ADD COLUMN user_id TEXT;
+      ALTER TABLE garment ADD COLUMN user_id TEXT;
+      ALTER TABLE outfit  ADD COLUMN user_id TEXT;
+      ALTER TABLE tryon   ADD COLUMN user_id TEXT;
+      ALTER TABLE device  ADD COLUMN user_id TEXT;
+
+      -- Whatever is already here belongs to the person whose laptop this is.
+      INSERT INTO user (id, auth_id, email, name, created_at)
+        VALUES ('local', NULL, NULL, 'This computer', unixepoch() * 1000);
+
+      UPDATE person  SET user_id = 'local' WHERE user_id IS NULL;
+      UPDATE garment SET user_id = 'local' WHERE user_id IS NULL;
+      UPDATE outfit  SET user_id = 'local' WHERE user_id IS NULL;
+      UPDATE tryon   SET user_id = 'local' WHERE user_id IS NULL;
+      UPDATE device  SET user_id = 'local' WHERE user_id IS NULL;
+
+      CREATE INDEX idx_garment_user ON garment (user_id);
+      CREATE INDEX idx_outfit_user  ON outfit (user_id);
+      CREATE INDEX idx_tryon_user   ON tryon (user_id);
+      CREATE INDEX idx_device_user  ON device (user_id);
+
+      -- One photo per person, enforced rather than assumed: the old code kept a
+      -- single row at a hardcoded id, and that assumption is exactly what stops
+      -- being true here.
+      CREATE UNIQUE INDEX idx_person_user ON person (user_id);
+    `,
+  },
+  {
+    name: '011_media_signing_and_user_spend',
+    sql: `
+      -- Somewhere to keep a secret that has to survive a restart but isn't
+      -- worth asking anyone to configure. Today that's the key media URLs are
+      -- signed with: generated on first use, and stable afterwards so a link
+      -- handed out this morning still works this afternoon.
+      CREATE TABLE app_setting (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
+      -- Spend was one number for the whole server, which is the right shape
+      -- for one person's laptop and the wrong one for a public URL: the first
+      -- visitor could empty the budget before the second arrived.
+      ALTER TABLE spend_log ADD COLUMN user_id TEXT;
+      UPDATE spend_log SET user_id = 'local' WHERE user_id IS NULL;
+      CREATE INDEX idx_spend_user ON spend_log (user_id);
+    `,
+  },
+  {
+    name: '012_local_user_has_no_allowance',
+    sql: `
+      -- Per-person allowances exist to stop a visitor draining somebody else's
+      -- account. The local user is that somebody else: it's whoever is sitting
+      -- at the machine, paying for the key, and their limit is the server's own
+      -- UNIT_BUDGET — which they set.
+      --
+      -- Without this they inherit the default visitor allowance and, if they
+      -- have ever used the thing, are over it immediately: their own spend from
+      -- before allowances existed gets counted against them.
+      UPDATE user SET unit_cap = 0 WHERE id = 'local';
+    `,
+  },
+  {
+    name: '013_outfit_video_pose',
+    sql: `
+      -- Which motion the video was rendered with. Stored rather than derived
+      -- because it's the only way to tell "you already have this video" from
+      -- "you have a different one of the same outfit" — asking for the catwalk
+      -- when the row holds the lookbook has to be a new render, not a no-op.
+      --
+      -- Existing rows were all made before there was a choice, and the prompt
+      -- they used is the one 'lookbook' still sends.
+      ALTER TABLE outfit ADD COLUMN video_pose TEXT;
+      UPDATE outfit SET video_pose = 'lookbook' WHERE video_path IS NOT NULL;
+    `,
+  },
 ];
 
 function migrate() {

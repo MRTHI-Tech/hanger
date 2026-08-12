@@ -5,6 +5,7 @@ import {db} from '../db.js';
 import {validateImage} from '../images.js';
 import {extForContentType, mediaUrl, remove, save} from '../storage.js';
 import {CodedError} from '../youcam/errors.js';
+import {currentUser} from '../auth.js';
 import type {GarmentRow, Price} from '../types.js';
 
 export const garmentRoutes = new Hono();
@@ -58,45 +59,57 @@ export function garmentJson(row: GarmentRow) {
   };
 }
 
-export function getGarmentRow(id: string): GarmentRow {
-  const row = db.prepare('SELECT * FROM garment WHERE id = ?').get(id) as
-    | GarmentRow
-    | undefined;
+/**
+ * One garment, and only if it's theirs.
+ *
+ * The owner check is part of the lookup rather than a separate line the caller
+ * has to remember, because the caller forgetting is exactly how one person ends
+ * up looking at another's wardrobe. Somebody else's id is indistinguishable
+ * from one that doesn't exist, which is also what we want to tell them.
+ */
+export function getGarmentRow(userId: string, id: string): GarmentRow {
+  const row = db
+    .prepare('SELECT * FROM garment WHERE id = ? AND user_id = ?')
+    .get(id, userId) as GarmentRow | undefined;
   if (!row) throw new CodedError('not_found');
   return row;
 }
 
 garmentRoutes.get('/', (c) => {
+  const user = currentUser(c);
   const category = c.req.query('category');
   // Your Hanger holds what was kept. `?all=1` also returns garments that only
   // exist because something was tried on and not hung.
   const onlyHung = c.req.query('all') !== '1';
-  const where = [
-    onlyHung ? 'hung = 1' : null,
-    category ? 'category = ?' : null,
-  ].filter(Boolean);
-  const sql = `SELECT * FROM garment${
-    where.length ? ` WHERE ${where.join(' AND ')}` : ''
-  } ORDER BY saved_at DESC`;
-  const rows = (
-    category ? db.prepare(sql).all(category) : db.prepare(sql).all()
-  ) as GarmentRow[];
+  // user_id is first and unconditional: the other two clauses are optional and
+  // this one never is.
+  const where = ['user_id = ?', onlyHung ? 'hung = 1' : null, category ? 'category = ?' : null]
+    .filter(Boolean)
+    .join(' AND ');
+  const params = category ? [user.id, category] : [user.id];
+  const rows = db
+    .prepare(`SELECT * FROM garment WHERE ${where} ORDER BY saved_at DESC`)
+    .all(...params) as GarmentRow[];
   return c.json(rows.map(garmentJson));
 });
 
 garmentRoutes.post('/:id/hang', (c) => {
-  const row = getGarmentRow(c.req.param('id'));
+  const user = currentUser(c);
+  const row = getGarmentRow(user.id, c.req.param('id'));
   db.prepare('UPDATE garment SET hung = 1, saved_at = ? WHERE id = ?').run(
     Date.now(),
     row.id,
   );
   console.log(`[hanger] hung it: ${row.title}`);
-  return c.json(garmentJson(getGarmentRow(row.id)));
+  return c.json(garmentJson(getGarmentRow(user.id, row.id)));
 });
 
-garmentRoutes.get('/:id', (c) => c.json(garmentJson(getGarmentRow(c.req.param('id')))));
+garmentRoutes.get('/:id', (c) =>
+  c.json(garmentJson(getGarmentRow(currentUser(c).id, c.req.param('id')))),
+);
 
 garmentRoutes.post('/', async (c) => {
+  const user = currentUser(c);
   const form = await c.req.formData();
   const image = form.get('image');
   const rawMeta = form.get('meta');
@@ -132,11 +145,13 @@ garmentRoutes.post('/', async (c) => {
 
   db.prepare(
     `INSERT INTO garment
-       (id, title, brand, retailer, product_url, price_amount, price_currency,
-        category, image_path, source_image_url, hung, source, saved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'shop', ?)`,
+       (id, user_id, title, brand, retailer, product_url, price_amount,
+        price_currency, category, image_path, source_image_url, hung, source,
+        saved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'shop', ?)`,
   ).run(
     id,
+    user.id,
     meta.data.title,
     meta.data.brand ?? null,
     meta.data.retailer,
@@ -154,7 +169,7 @@ garmentRoutes.post('/', async (c) => {
     `[hanger] ${hang ? 'hung' : 'scraped'}: ${meta.data.title} (${meta.data.category}) from ${meta.data.retailer}`,
   );
 
-  return c.json(garmentJson(getGarmentRow(id)));
+  return c.json(garmentJson(getGarmentRow(user.id, id)));
 });
 
 /**
@@ -173,6 +188,7 @@ const ownedMetaSchema = z.object({
 });
 
 garmentRoutes.post('/owned', async (c) => {
+  const user = currentUser(c);
   const form = await c.req.formData();
   const image = form.get('image');
   const rawMeta = form.get('meta');
@@ -208,26 +224,26 @@ garmentRoutes.post('/owned', async (c) => {
   // something you own *is* the act of keeping it.
   db.prepare(
     `INSERT INTO garment
-       (id, title, brand, retailer, product_url, price_amount, price_currency,
-        category, image_path, source_image_url, hung, source, saved_at)
-     VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, NULL, 1, 'owned', ?)`,
-  ).run(id, meta.data.title, meta.data.category, path, Date.now());
+       (id, user_id, title, brand, retailer, product_url, price_amount,
+        price_currency, category, image_path, source_image_url, hung, source,
+        saved_at)
+     VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, NULL, 1, 'owned', ?)`,
+  ).run(id, user.id, meta.data.title, meta.data.category, path, Date.now());
 
   console.log(`[hanger] hung your own: ${meta.data.title} (${meta.data.category})`);
 
-  return c.json(garmentJson(getGarmentRow(id)));
+  return c.json(garmentJson(getGarmentRow(user.id, id)));
 });
 
 garmentRoutes.delete('/:id', (c) => {
-  const id = c.req.param('id');
-  const row = db.prepare('SELECT * FROM garment WHERE id = ?').get(id) as
-    | GarmentRow
-    | undefined;
-  if (row) {
-    db.prepare('DELETE FROM garment WHERE id = ?').run(id);
-    db.prepare('DELETE FROM outfit_item WHERE garment_id = ?').run(id);
-    db.prepare('DELETE FROM alternative WHERE garment_id = ?').run(id);
-    remove(row.image_path);
-  }
+  // Resolved through the scoped lookup, which 404s on anything that isn't
+  // theirs. This used to answer 204 regardless — harmless when there was one
+  // wardrobe, and a lie once there are several: it told a stranger their
+  // delete had worked while quietly doing nothing.
+  const row = getGarmentRow(currentUser(c).id, c.req.param('id'));
+  db.prepare('DELETE FROM garment WHERE id = ?').run(row.id);
+  db.prepare('DELETE FROM outfit_item WHERE garment_id = ?').run(row.id);
+  db.prepare('DELETE FROM alternative WHERE garment_id = ?').run(row.id);
+  remove(row.image_path);
   return c.body(null, 204);
 });

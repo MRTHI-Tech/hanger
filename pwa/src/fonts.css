@@ -1,0 +1,22 @@
+/*
+ * The two families the butter theme asks for, bundled locally. Same rule as the
+ * side panel: never call out to a font CDN. An installed app on a phone with no
+ * signal still has to look like itself.
+ *
+ * The files are copied in by scripts/make-assets.mjs.
+ */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/outfit.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Sarina';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/sarina.woff2') format('woff2');
+}

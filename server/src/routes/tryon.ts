@@ -6,6 +6,7 @@ import {CodedError, humanize} from '../youcam/errors.js';
 import {getTryOnRow, startTryOn, type TryOnRow} from '../youcam/tryon.js';
 import {getGarmentRow} from './garments.js';
 import {requirePerson} from './person.js';
+import {currentUser} from '../auth.js';
 import {isTryOnable} from '../types.js';
 
 export const tryonRoutes = new Hono();
@@ -37,8 +38,10 @@ function tryOnJson(row: TryOnRow) {
 
 tryonRoutes.get('/', (c) => {
   const rows = db
-    .prepare('SELECT * FROM tryon ORDER BY created_at DESC LIMIT 60')
-    .all() as TryOnRow[];
+    .prepare(
+      'SELECT * FROM tryon WHERE user_id = ? ORDER BY created_at DESC LIMIT 60',
+    )
+    .all(currentUser(c).id) as TryOnRow[];
   return c.json(rows.map(tryOnJson));
 });
 
@@ -46,8 +49,9 @@ tryonRoutes.post('/', async (c) => {
   const body = startSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) throw new CodedError('invalid_request');
 
-  const person = requirePerson();
-  const garment = getGarmentRow(body.data.garmentId);
+  const user = currentUser(c);
+  const person = requirePerson(user.id);
+  const garment = getGarmentRow(user.id, body.data.garmentId);
 
   if (!isTryOnable(garment.category)) {
     // Bags, hats and scarves live in Your Hanger but don't go through
@@ -56,6 +60,7 @@ tryonRoutes.post('/', async (c) => {
   }
 
   const result = await startTryOn(
+    user.id,
     person,
     garment,
     garment.category,
@@ -72,4 +77,6 @@ tryonRoutes.post('/', async (c) => {
   });
 });
 
-tryonRoutes.get('/:id', (c) => c.json(tryOnJson(getTryOnRow(c.req.param('id')))));
+tryonRoutes.get('/:id', (c) =>
+  c.json(tryOnJson(getTryOnRow(currentUser(c).id, c.req.param('id')))),
+);

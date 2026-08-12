@@ -1,0 +1,63 @@
+# Render blueprint. One service: the API, which also serves the phone app.
+#
+# Serving both from one origin is deliberate. It means the phone makes
+# same-origin requests — no CORS, no second deploy, and one URL to give a judge.
+# The Chrome extension is still a separate origin and still needs the CORS rules
+# in server/src/index.ts.
+#
+# Why a container and not a serverless function: a try-on polls YouCam for up to
+# five minutes. Serverless hosts cut a request off long before that.
+services:
+  - type: web
+    name: hanger
+    runtime: node
+    # Starter, not free, and the disk below is why: a free instance has no
+    # persistent storage, so the database and every stored image are wiped on
+    # each deploy and restart. The sleeping is survivable; losing somebody's
+    # wardrobe is not.
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci && npm run build:pwa
+    startCommand: npm start --workspace server
+    healthCheckPath: /health
+
+    # The database and every stored image live here. Without a disk, Render
+    # gives the container scratch space that is wiped on every deploy and
+    # restart — which would take somebody's whole wardrobe with it.
+    disk:
+      name: hanger-data
+      mountPath: /data
+      sizeGB: 5
+
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_PATH
+        value: /data/hanger.db
+      - key: STORAGE_PATH
+        value: /data/storage
+      - key: SERVE_PWA
+        value: true
+      # Judges get sample results, not spend. Flip to false once there are
+      # real keys and a per-person cap you're happy with.
+      - key: MOCK_MODE
+        value: true
+      # Set these in the Render dashboard, not here — this file is in git.
+      - key: YOUCAM_API_KEY
+        sync: false
+      - key: SERPAPI_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      # Needed at *build* time as well as run time: Vite bakes it into the
+      # phone app's bundle, so it carries the VITE_ prefix there.
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+      # The public URL, so the pairing QR points at the deployed app rather
+      # than a LAN address that means nothing to a phone on mobile data. Set by
+      # hand after the first deploy, when Render has assigned the hostname —
+      # e.g. https://hanger.onrender.com
+      - key: PWA_ORIGIN
+        sync: false

@@ -6,6 +6,18 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "serve", "-l", "5599", "extension/dist"],
       "port": 5599
+    },
+    {
+      "name": "server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:server"],
+      "port": 8787
+    },
+    {
+      "name": "phone",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:pwa"],
+      "port": 5174
     }
   ]
 }

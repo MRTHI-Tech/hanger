@@ -1,0 +1,26 @@
+{
+  "name": "@hanger/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./api": "./src/api.ts",
+    "./format": "./src/format.ts",
+    "./theme": "./src/theme/butterTheme.ts",
+    "./scripts/icon.mjs": "./scripts/icon.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@astryxdesign/core": "^0.2.0",
+    "lucide-react": "^1.28.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "react": "^19.2.8",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,6 +1,9 @@
 /**
- * Types shared between the extension and the server.
- * Mirrored at server/src/types.ts — keep the two in sync.
+ * The wire contract: what the server sends, and the vocabulary both ends speak.
+ *
+ * One copy, imported by the server, the extension and the phone. The server
+ * layers its own private row types on top in server/src/types.ts — those
+ * describe the database, not the wire, and stay there.
  */
 
 /** Categories we can store. Only the first four are try-on-able via cloth-v3. */
@@ -23,7 +26,8 @@ export const TRYONABLE: TryOnCategory[] = [
   'shoes',
 ];
 
-export function isTryOnable(c: GarmentCategory): c is TryOnCategory {
+/** Takes a plain string: the server checks values straight off a request. */
+export function isTryOnable(c: string): c is TryOnCategory {
   return (TRYONABLE as string[]).includes(c);
 }
 
@@ -40,6 +44,7 @@ export const CATEGORY_LABELS: Record<GarmentCategory, string> = {
 /** Outfit canvas slots, in chain order. */
 export type OutfitSlot = 'top' | 'outer' | 'bottom' | 'shoes';
 
+/** Chain order (§8.1): top, then any outer layer, then bottom, then shoes. */
 export const SLOT_ORDER: OutfitSlot[] = ['top', 'outer', 'bottom', 'shoes'];
 
 export const SLOT_LABELS: Record<OutfitSlot, string> = {
@@ -139,12 +144,50 @@ export interface OutfitItem {
 }
 
 /**
+ * How the person moves in the share video.
+ *
+ * Image-to-video animates outward from the still it's given, so these are
+ * motions a standing figure can plausibly start: nothing here asks for a pose
+ * the source photo isn't already close to.
+ */
+export type VideoPose = 'lookbook' | 'turn' | 'walk' | 'pose';
+
+export const VIDEO_POSES: {
+  value: VideoPose;
+  label: string;
+  /** Shown under the picker — what you'll actually get. */
+  description: string;
+}[] = [
+  {
+    value: 'lookbook',
+    label: 'Lookbook',
+    description: 'Stands still, turns slightly. The safe one.',
+  },
+  {value: 'turn', label: 'Turn around', description: 'Turns to show the back.'},
+  {value: 'walk', label: 'Catwalk', description: 'Walks towards the camera.'},
+  {value: 'pose', label: 'Pose', description: 'Hand on hip, shifts their weight.'},
+];
+
+export const DEFAULT_VIDEO_POSE: VideoPose = 'lookbook';
+
+/** Takes a plain string: the server checks values straight off a request. */
+export function isVideoPose(v: string): v is VideoPose {
+  return VIDEO_POSES.some((p) => p.value === v);
+}
+
+export function videoPoseLabel(pose: VideoPose): string {
+  return VIDEO_POSES.find((p) => p.value === pose)?.label ?? 'Lookbook';
+}
+
+/**
  * The optional share video built from a finished outfit. Separate from the
  * outfit's own status — a video that failed says nothing about the outfit.
  */
 export interface OutfitVideo {
   status: 'idle' | TaskStatus;
   url?: string;
+  /** Which motion this one was rendered with, so the panel can say so. */
+  pose?: VideoPose;
   /** 'unknown' when the service failed in a way we don't have copy for. */
   code?: string;
   message?: string;

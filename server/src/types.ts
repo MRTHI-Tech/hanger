@@ -1,44 +1,33 @@
 /**
- * Types shared with the extension.
- * Mirrored at extension/src/shared/types.ts — keep the two in sync.
+ * Server-side types.
+ *
+ * The vocabulary and the wire shapes live in @hanger/shared, one copy for the
+ * server, the extension and the phone. What's left here is the part no client
+ * ever sees: the database rows, snake_case, straight out of SQLite.
+ *
+ * Re-exported so `./types.js` stays the one import the rest of the server
+ * reaches for.
  */
 
-export type GarmentCategory =
-  | 'upper_body'
-  | 'lower_body'
-  | 'full_body'
-  | 'shoes'
-  | 'bag'
-  | 'hat'
-  | 'scarf';
+export type {
+  GarmentCategory,
+  TryOnCategory,
+  OutfitSlot,
+  TaskStatus,
+  Price,
+  GarmentSource,
+  VideoPose,
+} from '@hanger/shared/types';
 
-export type TryOnCategory = 'upper_body' | 'lower_body' | 'full_body' | 'shoes';
+export {
+  TRYONABLE,
+  SLOT_ORDER,
+  isTryOnable,
+  DEFAULT_VIDEO_POSE,
+  isVideoPose,
+} from '@hanger/shared/types';
 
-export const TRYONABLE: TryOnCategory[] = [
-  'upper_body',
-  'lower_body',
-  'full_body',
-  'shoes',
-];
-
-export function isTryOnable(c: string): c is TryOnCategory {
-  return (TRYONABLE as string[]).includes(c);
-}
-
-export type OutfitSlot = 'top' | 'outer' | 'bottom' | 'shoes';
-
-/** Chain order (§8.1): top, then any outer layer, then bottom, then shoes. */
-export const SLOT_ORDER: OutfitSlot[] = ['top', 'outer', 'bottom', 'shoes'];
-
-export type TaskStatus = 'pending' | 'running' | 'success' | 'error';
-
-export interface Price {
-  amount: number;
-  currency: string;
-}
-
-/** Where a garment came from: a shop's product page, or your own wardrobe. */
-export type GarmentSource = 'shop' | 'owned';
+import type {GarmentCategory, GarmentSource} from '@hanger/shared/types';
 
 export interface GarmentRow {
   id: string;

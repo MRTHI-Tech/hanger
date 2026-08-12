@@ -3,7 +3,7 @@ import type {
   Price,
   ScoredImage,
   ScrapedProduct,
-} from '../shared/types';
+} from '@hanger/shared/types';
 
 /**
  * Product page detection and extraction (§9).

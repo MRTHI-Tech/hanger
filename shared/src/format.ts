@@ -1,4 +1,4 @@
-import type {Price} from '../shared/types';
+import type {Price} from './types';
 
 const SYMBOLS: Record<string, string> = {
   GBP: '£',

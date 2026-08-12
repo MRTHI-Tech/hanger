@@ -1,4 +1,4 @@
-import type {ScrapedProduct} from '../shared/types';
+import type {ScrapedProduct} from '@hanger/shared/types';
 
 /**
  * The panel's side of the extension plumbing: picking up a scraped product

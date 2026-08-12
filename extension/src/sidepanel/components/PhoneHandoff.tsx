@@ -6,7 +6,7 @@ import {Heading} from '@astryxdesign/core/Heading';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {Spinner} from '@astryxdesign/core/Spinner';
-import {api, mediaUrl, type HandoffPurpose, type Handoff} from '../api';
+import {api, mediaUrl, type HandoffPurpose, type Handoff} from '@hanger/shared/api';
 import {ErrorNote} from './ErrorNote';
 
 /** How often the panel asks whether the phone has sent anything yet. */

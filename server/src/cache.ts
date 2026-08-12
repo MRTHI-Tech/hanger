@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {db} from './db.js';
-import type {TryOnCategory} from './types.js';
+import type {TryOnCategory, VideoPose} from './types.js';
 
 /**
  * Content-hash cache (§12.2). Keys hash the image *bytes*, never ids or URLs,
@@ -87,11 +87,19 @@ export function setChainStepFileId(key: string, fileId: string): void {
  * Two outfit rows built from the same pieces share one cached result image
  * (§8.3), and animating it twice is the most expensive mistake we can make —
  * video costs several units where a try-on costs one.
+ *
+ * The pose is part of the key because it changes the render: without it,
+ * asking the same outfit to walk after it has already stood still would be
+ * served the standing video from cache and look like the picker did nothing.
  */
-export function videoCacheKey(sourceBytes: Buffer, durationSeconds: number): string {
+export function videoCacheKey(
+  sourceBytes: Buffer,
+  durationSeconds: number,
+  pose: VideoPose,
+): string {
   return createHash('sha256')
     .update(sourceBytes)
-    .update(`|video|${durationSeconds}`)
+    .update(`|video|${durationSeconds}|${pose}`)
     .digest('hex');
 }
 

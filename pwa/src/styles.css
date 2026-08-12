@@ -1,0 +1,99 @@
+/*
+ * Layer order per the Astryx Tailwind bridge: reset, then Astryx component
+ * base styles, then the theme tokens, then Tailwind utilities on top.
+ * The butter theme itself is injected at runtime by <Theme theme={butterTheme}>.
+ */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/core/tailwind-theme.css';
+@import 'tailwindcss/utilities.css' layer(utilities);
+@import './fonts.css';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-background-body);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-body);
+  overflow-x: hidden;
+  /* A phone is held, not clicked. Kill the tap highlight and the double-tap
+     zoom that make a web page feel like a web page. */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  /* Rubber-banding the whole document under a fixed tab bar looks broken. */
+  overscroll-behavior-y: none;
+}
+
+/*
+ * Safe areas. The app paints edge to edge (viewport-fit=cover), so the notch,
+ * the status bar and the home indicator are ours to avoid.
+ */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/*
+ * Momentum scrolling for the one region that scrolls. Everything else is
+ * pinned, so the header and the tab bar never travel with the content.
+ */
+.scroll-region {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/*
+ * The bottom sheet. Astryx dialogs are centred cards capped at 90vw; this one
+ * spans the screen, sits on the bottom edge, and is rounded only where it meets
+ * the screen. Unlayered, so it beats the component's own layered styles.
+ */
+.hanger-sheet {
+  max-width: none;
+  border-start-start-radius: var(--radius-page);
+  border-start-end-radius: var(--radius-page);
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+  padding-bottom: calc(var(--spacing-4, 1rem) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Rise from the edge it's attached to, rather than the dialog's zoom-in. */
+.hanger-sheet[open] {
+  animation: hanger-sheet-rise 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes hanger-sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hanger-sheet[open] {
+    animation-duration: 1ms;
+  }
+}
+
+/* Consistent, quiet scrollbars — desktop only; phones have none. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-emphasized) transparent;
+}

@@ -14,6 +14,7 @@ import type {GarmentRow, PersonRow, TryOnCategory} from '../types.js';
 
 export interface TryOnRow {
   id: string;
+  user_id: string;
   person_id: string;
   garment_id: string;
   base_hash: string;
@@ -25,10 +26,10 @@ export interface TryOnRow {
   created_at: number;
 }
 
-export function getTryOnRow(id: string): TryOnRow {
-  const row = db.prepare('SELECT * FROM tryon WHERE id = ?').get(id) as
-    | TryOnRow
-    | undefined;
+export function getTryOnRow(userId: string, id: string): TryOnRow {
+  const row = db
+    .prepare('SELECT * FROM tryon WHERE id = ? AND user_id = ?')
+    .get(id, userId) as TryOnRow | undefined;
   if (!row) throw new CodedError('not_found');
   return row;
 }
@@ -37,12 +38,16 @@ export function getTryOnRow(id: string): TryOnRow {
  * A YouCam file id is worth reusing across calls, but not forever (§6 — the
  * schema keeps `file_id_at` for exactly this). Re-upload once it's stale.
  */
-export async function personFileId(person: PersonRow): Promise<string> {
+export async function personFileId(
+  userId: string,
+  person: PersonRow,
+): Promise<string> {
   if (person.youcam_file_id && fileIdIsFresh(person.file_id_at)) {
     return person.youcam_file_id;
   }
   const bytes = read(person.photo_path);
   const fileId = await uploadImage(
+    userId,
     bytes,
     contentTypeForExt(person.photo_path),
     'person.jpg',
@@ -55,7 +60,10 @@ export async function personFileId(person: PersonRow): Promise<string> {
   return fileId;
 }
 
-export async function garmentFileId(garment: GarmentRow): Promise<string> {
+export async function garmentFileId(
+  userId: string,
+  garment: GarmentRow,
+): Promise<string> {
   if (garment.youcam_file_id && fileIdIsFresh(garment.file_id_at)) {
     return garment.youcam_file_id;
   }
@@ -63,6 +71,7 @@ export async function garmentFileId(garment: GarmentRow): Promise<string> {
   // §2.2: these are bytes we fetched from inside the page, uploaded through the
   // File API. A retailer URL never goes to the API as ref_file_url.
   const fileId = await uploadImage(
+    userId,
     bytes,
     contentTypeForExt(garment.image_path),
     'garment.jpg',
@@ -85,6 +94,7 @@ export interface StartTryOnResult {
  * A cache hit returns the finished result without touching the API (§12.2).
  */
 export async function startTryOn(
+  userId: string,
   person: PersonRow,
   garment: GarmentRow,
   category: TryOnCategory,
@@ -94,11 +104,16 @@ export async function startTryOn(
   const garmentBytes = read(garment.image_path);
   const cacheKey = tryOnCacheKey(baseBytes, garmentBytes, category, changeShoes);
 
+  // Scoped to the user as well as the key. The key is a hash of the two images,
+  // one of which is a photograph of the person, so a cross-user hit is not a
+  // thing that can realistically happen — but if it ever did, we'd hand back a
+  // row belonging to somebody else and every later read of it would 404.
   const cached = db
     .prepare(
-      "SELECT * FROM tryon WHERE cache_key = ? AND status = 'success' LIMIT 1",
+      `SELECT * FROM tryon
+        WHERE cache_key = ? AND user_id = ? AND status = 'success' LIMIT 1`,
     )
-    .get(cacheKey) as TryOnRow | undefined;
+    .get(cacheKey, userId) as TryOnRow | undefined;
 
   if (cached?.result_path) {
     logCacheHit('tryon', cacheKey);
@@ -113,18 +128,28 @@ export async function startTryOn(
   const id = randomUUID();
   db.prepare(
     `INSERT INTO tryon
-       (id, person_id, garment_id, base_hash, cache_key, status, units_est, created_at)
-     VALUES (?, ?, ?, ?, ?, 'running', 1, ?)`,
-  ).run(id, person.id, garment.id, cacheKey, `${cacheKey}:${id}`, Date.now());
+       (id, user_id, person_id, garment_id, base_hash, cache_key, status,
+        units_est, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'running', 1, ?)`,
+  ).run(
+    id,
+    userId,
+    person.id,
+    garment.id,
+    cacheKey,
+    `${cacheKey}:${id}`,
+    Date.now(),
+  );
 
   // Run in the background; the row is the handle.
-  void execute(id, person, garment, category, changeShoes, cacheKey);
+  void execute(id, userId, person, garment, category, changeShoes, cacheKey);
 
   return {tryonId: id, status: 'running', cached: false};
 }
 
 async function execute(
   id: string,
+  userId: string,
   person: PersonRow,
   garment: GarmentRow,
   category: TryOnCategory,
@@ -133,11 +158,11 @@ async function execute(
 ): Promise<void> {
   try {
     const [srcFileId, refFileId] = await Promise.all([
-      personFileId(person),
-      garmentFileId(garment),
+      personFileId(userId, person),
+      garmentFileId(userId, garment),
     ]);
 
-    const {resultPath} = await runCloth({
+    const {resultPath} = await runCloth(userId, {
       srcFileId,
       refFileId,
       category,
@@ -149,10 +174,9 @@ async function execute(
     // same thing can't collide on the unique index. Claim the real cache key
     // now, dropping any earlier winner for it.
     db.transaction(() => {
-      db.prepare('DELETE FROM tryon WHERE cache_key = ? AND id != ?').run(
-        cacheKey,
-        id,
-      );
+      db.prepare(
+        'DELETE FROM tryon WHERE cache_key = ? AND user_id = ? AND id != ?',
+      ).run(cacheKey, userId, id);
       db.prepare(
         "UPDATE tryon SET status = 'success', result_path = ?, cache_key = ? WHERE id = ?",
       ).run(resultPath, cacheKey, id);

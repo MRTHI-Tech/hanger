@@ -1,8 +1,9 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Theme} from '@astryxdesign/core/theme';
-import {butterTheme} from '../themes/butter/butterTheme';
+import {butterTheme} from '@hanger/shared/theme';
 import {App} from './App';
+import {AuthProvider, RequireSignIn} from './auth';
 import './styles.css';
 
 const root = document.getElementById('root');
@@ -14,7 +15,11 @@ createRoot(root).render(
         signature look, and a shopper is judging colours against their own
         photo — a dark panel shifts how the garment reads. */}
     <Theme theme={butterTheme} mode="light">
-      <App />
+      <AuthProvider>
+        <RequireSignIn>
+          <App />
+        </RequireSignIn>
+      </AuthProvider>
     </Theme>
   </StrictMode>,
 );

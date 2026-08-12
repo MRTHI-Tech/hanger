@@ -2,9 +2,9 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Badge} from '@astryxdesign/core/Badge';
-import {mediaUrl} from '../api';
-import {formatPrice} from '../format';
-import {CATEGORY_LABELS, type Garment} from '../../shared/types';
+import {mediaUrl} from '@hanger/shared/api';
+import {formatPrice} from '@hanger/shared/format';
+import {CATEGORY_LABELS, type Garment} from '@hanger/shared/types';
 
 /**
  * One garment in Your Hanger. Draggable, because the outfit canvas accepts

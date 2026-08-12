@@ -7,7 +7,8 @@ import {
   renderFigure,
   type FigureLayers,
 } from './mock/figure.js';
-import type {TryOnCategory} from './types.js';
+import {videoPoseLabel} from '@hanger/shared/types';
+import type {TryOnCategory, VideoPose} from './types.js';
 import type {ClothTaskInput} from './youcam/client.js';
 
 /**
@@ -133,6 +134,7 @@ export async function mockRunCloth(
  */
 export async function mockRunVideo(
   sourceBytes: Buffer,
+  pose: VideoPose,
   onTick?: (elapsedMs: number) => void,
 ): Promise<{bytes: Buffer; contentType: string}> {
   const forced = takeForcedError();
@@ -148,25 +150,15 @@ export async function mockRunVideo(
 
   const figure = renderFigure(
     readLayers(sourceBytes),
-    'Sample video — no API credits used',
+    `Sample video — ${videoPoseLabel(pose).toLowerCase()}, no API credits used`,
   );
-
-  // A slow push-in and a sweep of light over the figure: enough motion to show
-  // what the real thing does, obviously not a real render.
-  const animation = `
-  <style>
-    .stage { animation: hanger-push 5s ease-in-out infinite alternate; transform-origin: 50% 45%; }
-    .sheen { animation: hanger-sheen 5s linear infinite; }
-    @keyframes hanger-push { from { transform: scale(1); } to { transform: scale(1.06); } }
-    @keyframes hanger-sheen { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
-  </style>`;
 
   const inner = figure
     .replace(/^[\s\S]*?<svg[^>]*>/, '')
     .replace(/<\/svg>\s*$/, '');
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="768" height="1024" viewBox="0 0 768 1024" role="img" aria-label="Sample outfit video">
-${animation}
+${POSE_ANIMATIONS[pose] ?? POSE_ANIMATIONS.lookbook}
   <g class="stage">${inner}</g>
   <g class="sheen">
     <rect x="0" y="0" width="140" height="1024" fill="#ffffff" opacity="0.16" />
@@ -175,6 +167,58 @@ ${animation}
 
   return {bytes: Buffer.from(svg, 'utf8'), contentType: 'image/svg+xml'};
 }
+
+/**
+ * One per pose, and visibly different from each other — a picker whose options
+ * all produce the same sample teaches the demo nothing. Each is a sweep of
+ * light plus a motion that reads as the thing the live prompt asks for: enough
+ * to show what the real thing does, obviously not a real render.
+ */
+const POSE_ANIMATIONS: Record<VideoPose, string> = {
+  lookbook: `
+  <style>
+    .stage { animation: hanger-push 5s ease-in-out infinite alternate; transform-origin: 50% 45%; }
+    .sheen { animation: hanger-sheen 5s linear infinite; }
+    @keyframes hanger-push { from { transform: scale(1); } to { transform: scale(1.06); } }
+    @keyframes hanger-sheen { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+  </style>`,
+  // Squashed horizontally and back: the flat-drawing version of turning on the
+  // spot, since a mock figure has no back to show.
+  turn: `
+  <style>
+    .stage { animation: hanger-turn 5s ease-in-out infinite; transform-origin: 50% 50%; }
+    .sheen { animation: hanger-sheen 5s linear infinite; }
+    @keyframes hanger-turn {
+      0%, 100% { transform: scaleX(1); }
+      25% { transform: scaleX(0.35); }
+      50% { transform: scaleX(-1); }
+      75% { transform: scaleX(0.35); }
+    }
+    @keyframes hanger-sheen { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+  </style>`,
+  // Walking towards the camera: grows and drifts, with a slight step-sway.
+  walk: `
+  <style>
+    .stage { animation: hanger-walk 5s ease-in-out infinite alternate; transform-origin: 50% 100%; }
+    .sheen { animation: hanger-sheen 5s linear infinite; }
+    @keyframes hanger-walk {
+      from { transform: scale(0.92) translateX(-14px) rotate(-1deg); }
+      to { transform: scale(1.14) translateX(14px) rotate(1deg); }
+    }
+    @keyframes hanger-sheen { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+  </style>`,
+  // Weight onto one leg: a lean that settles rather than travels.
+  pose: `
+  <style>
+    .stage { animation: hanger-pose 5s ease-in-out infinite alternate; transform-origin: 50% 95%; }
+    .sheen { animation: hanger-sheen 5s linear infinite; }
+    @keyframes hanger-pose {
+      from { transform: rotate(-2.5deg) translateX(-10px); }
+      to { transform: rotate(2.5deg) translateX(10px) scale(1.03); }
+    }
+    @keyframes hanger-sheen { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+  </style>`,
+};
 
 /** Mock stand-in for AI Photo Enhance (§10.2). */
 export async function mockEnhance(bytes: Buffer): Promise<Buffer> {

@@ -11,7 +11,7 @@ import {Selector} from '@astryxdesign/core/Selector';
 import {Switch} from '@astryxdesign/core/Switch';
 import {ProgressBar} from '@astryxdesign/core/ProgressBar';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
-import {api, HangerError, mediaUrl} from '../api';
+import {api, HangerError, mediaUrl} from '@hanger/shared/api';
 import {dataUrlToBlob, fetchImageViaTab} from '../bridge';
 import {ImageStrip} from '../components/ImageStrip';
 import {BeforeAfter} from '../components/BeforeAfter';
@@ -23,8 +23,8 @@ import {
   type GarmentCategory,
   type Person,
   type ScrapedProduct,
-} from '../../shared/types';
-import {formatPrice} from '../format';
+} from '@hanger/shared/types';
+import {formatPrice} from '@hanger/shared/format';
 
 type Phase = 'idle' | 'fetching' | 'keeping' | 'running' | 'done' | 'kept' | 'failed';
 

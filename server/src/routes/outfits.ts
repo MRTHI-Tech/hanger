@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {Hono} from 'hono';
+import {Hono, type Context} from 'hono';
 import {z} from 'zod';
 import {db} from '../db.js';
 import {
@@ -15,7 +15,9 @@ import {runVideo} from '../youcam/engine.js';
 import {VIDEO_DURATION_SECONDS, VIDEO_UNIT_COST} from '../youcam/client.js';
 import {garmentJson, getGarmentRow} from './garments.js';
 import {getPerson, requirePerson} from './person.js';
-import type {GarmentRow, OutfitSlot, PersonRow} from '../types.js';
+import {currentUser} from '../auth.js';
+import {DEFAULT_VIDEO_POSE, isVideoPose} from '../types.js';
+import type {GarmentRow, OutfitSlot, PersonRow, VideoPose} from '../types.js';
 
 export const outfitRoutes = new Hono();
 
@@ -47,6 +49,7 @@ interface OutfitRow {
   video_status: 'running' | 'success' | 'error' | null;
   video_path: string | null;
   video_error_code: string | null;
+  video_pose: VideoPose | null;
   created_at: number;
 }
 
@@ -58,10 +61,10 @@ interface OutfitItemRow {
   skipped: number;
 }
 
-function getOutfitRow(id: string): OutfitRow {
-  const row = db.prepare('SELECT * FROM outfit WHERE id = ?').get(id) as
-    | OutfitRow
-    | undefined;
+function getOutfitRow(userId: string, id: string): OutfitRow {
+  const row = db
+    .prepare('SELECT * FROM outfit WHERE id = ? AND user_id = ?')
+    .get(id, userId) as OutfitRow | undefined;
   if (!row) throw new CodedError('not_found');
   return row;
 }
@@ -87,7 +90,12 @@ function outfitJson(row: OutfitRow) {
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
-  const person = getPerson();
+  // By the outfit's own person_id rather than "the" person: the row already
+  // says whose photo it was built on, and looking it up any other way would
+  // mean this function needed to be told who is asking.
+  const person = db.prepare('SELECT * FROM person WHERE id = ?').get(row.person_id) as
+    | {photo_path: string}
+    | undefined;
   const human = row.status === 'error' ? humanize(row.error_code ?? undefined) : null;
   const videoHuman =
     row.video_status === 'error' ? humanize(row.video_error_code ?? undefined) : null;
@@ -114,6 +122,7 @@ function outfitJson(row: OutfitRow) {
     video: {
       status: row.video_status ?? 'idle',
       url: row.video_path ? mediaUrl(row.video_path) : undefined,
+      pose: row.video_pose ?? undefined,
       // The code rides along so the panel can tell "we know what went wrong"
       // (say, out of credits) from "the service said something we don't
       // recognise" — those deserve different copy, and §13 forbids showing the
@@ -131,19 +140,20 @@ function outfitJson(row: OutfitRow) {
 
 outfitRoutes.get('/', (c) => {
   const rows = db
-    .prepare('SELECT * FROM outfit ORDER BY created_at DESC')
-    .all() as OutfitRow[];
+    .prepare('SELECT * FROM outfit WHERE user_id = ? ORDER BY created_at DESC')
+    .all(currentUser(c).id) as OutfitRow[];
   return c.json(rows.map(outfitJson));
 });
 
 outfitRoutes.post('/', async (c) => {
+  const user = currentUser(c);
   const body = createSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) throw new CodedError('invalid_request');
 
-  const person = requirePerson();
+  const person = requirePerson(user.id);
 
   const entries = body.data.items.map((item) => ({
-    garment: getGarmentRow(item.garmentId),
+    garment: getGarmentRow(user.id, item.garmentId),
     slot: item.slot,
     changeShoes: item.changeShoes,
   }));
@@ -166,7 +176,7 @@ outfitRoutes.post('/', async (c) => {
     console.log(
       `[hanger] outfit ${existing.id.slice(0, 8)}: same pieces as an existing one, reusing it`,
     );
-    const row = getOutfitRow(existing.id);
+    const row = getOutfitRow(user.id, existing.id);
     return c.json({
       outfitId: row.id,
       id: row.id,
@@ -181,10 +191,12 @@ outfitRoutes.post('/', async (c) => {
   db.transaction(() => {
     db.prepare(
       `INSERT INTO outfit
-         (id, name, person_id, status, progress_step, progress_of, progress_label, created_at)
-       VALUES (?, ?, ?, 'running', 0, ?, ?, ?)`,
+         (id, user_id, name, person_id, status, progress_step, progress_of,
+          progress_label, created_at)
+       VALUES (?, ?, ?, ?, 'running', 0, ?, ?, ?)`,
     ).run(
       id,
+      user.id,
       body.data.name ?? null,
       person.id,
       items.length,
@@ -206,7 +218,7 @@ outfitRoutes.post('/', async (c) => {
   );
 
   // Runs in the background; the panel polls GET /outfits/:id.
-  void execute(id, person, items, ignored);
+  void execute(id, user.id, person, items, ignored);
 
   return c.json({outfitId: id, id, status: 'running', ignoredSlots: ignored});
 });
@@ -253,12 +265,13 @@ function findIdenticalOutfit(
 
 async function execute(
   id: string,
+  userId: string,
   person: PersonRow,
   items: ReturnType<typeof planChain>['items'],
   ignored: OutfitSlot[],
 ): Promise<void> {
   try {
-    const outcome = await runChain(person, items, (progress) => {
+    const outcome = await runChain(userId, person, items, (progress) => {
       db.prepare(
         'UPDATE outfit SET progress_step = ?, progress_of = ?, progress_label = ? WHERE id = ?',
       ).run(progress.step, progress.of, progress.label, id);
@@ -328,47 +341,72 @@ function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 
-outfitRoutes.get('/:id', (c) => c.json(outfitJson(getOutfitRow(c.req.param('id')))));
+outfitRoutes.get('/:id', (c) =>
+  c.json(outfitJson(getOutfitRow(currentUser(c).id, c.req.param('id')))),
+);
 
 /**
  * Turn a finished outfit into a short video worth sending someone. Starts the
  * task and returns immediately; the panel keeps polling GET /outfits/:id and
  * reads `video`, the same way it already watches the outfit itself.
  */
-outfitRoutes.post('/:id/video', (c) => {
+outfitRoutes.post('/:id/video', async (c) => {
+  const user = currentUser(c);
   const id = c.req.param('id');
-  const row = getOutfitRow(id);
+  const row = getOutfitRow(user.id, id);
 
   // Only a finished outfit has an image to animate.
   if (row.status !== 'success' || !row.result_path) throw new CodedError('not_found');
 
+  const pose = await requestedPose(c);
+
   // Already done, or already on its way — hand back what we have rather than
-  // paying for a second identical render.
-  if (row.video_status === 'success' && row.video_path) {
+  // paying for a second identical render. "Identical" now includes the motion:
+  // the same outfit walking is a different video from the same outfit standing
+  // still, and asking for one must not silently return the other.
+  if (row.video_status === 'success' && row.video_path && row.video_pose === pose) {
     return c.json(outfitJson(row));
   }
+  // A render already in flight wins regardless of which pose was asked for.
+  // Two paid video tasks against one outfit is the expensive way to handle an
+  // impatient second click, and the row has one video_path to write to anyway.
   if (row.video_status === 'running') return c.json(outfitJson(row));
 
   // Someone else may have animated this exact image already — a duplicate
-  // outfit, or this same one before an error. Resolved before any spend, and
+  // outfit, or this same one before an error, or this one in another pose we
+  // are now being asked for again. Resolved before any spend, and
   // synchronously, so a cache hit comes back as a finished video rather than
   // putting the panel through a spinner for nothing.
-  const cached = findCachedVideo(row.result_path);
+  const cached = findCachedVideo(row.result_path, pose);
   if (cached) {
     db.prepare(
-      "UPDATE outfit SET video_status = 'success', video_path = ?, video_error_code = NULL WHERE id = ?",
-    ).run(cached, id);
-    return c.json(outfitJson(getOutfitRow(id)));
+      `UPDATE outfit SET video_status = 'success', video_path = ?, video_pose = ?,
+         video_error_code = NULL WHERE id = ?`,
+    ).run(cached, pose, id);
+    return c.json(outfitJson(getOutfitRow(user.id, id)));
   }
 
+  // The pose is written now rather than on success so a failed render says
+  // which one failed — otherwise the row still claims the last one that worked.
   db.prepare(
-    "UPDATE outfit SET video_status = 'running', video_error_code = NULL WHERE id = ?",
-  ).run(id);
+    `UPDATE outfit SET video_status = 'running', video_pose = ?,
+       video_error_code = NULL WHERE id = ?`,
+  ).run(pose, id);
 
-  void makeVideo(id, row.result_path);
+  void makeVideo(id, user.id, row.result_path, pose);
 
-  return c.json(outfitJson(getOutfitRow(id)));
+  return c.json(outfitJson(getOutfitRow(user.id, id)));
 });
+
+/**
+ * The body is optional and so is the field inside it: a client that predates
+ * the picker sends neither, and gets the motion it has always got.
+ */
+async function requestedPose(c: Context): Promise<VideoPose> {
+  const body = (await c.req.json().catch(() => null)) as {pose?: unknown} | null;
+  const raw = body?.pose;
+  return typeof raw === 'string' && isVideoPose(raw) ? raw : DEFAULT_VIDEO_POSE;
+}
 
 /**
  * The cache proper is keyed on the source image bytes (§12.2). The sibling
@@ -377,9 +415,9 @@ outfitRoutes.post('/:id/video', (c) => {
  * have no index entry would be the exact waste this is here to stop. Anything
  * it finds gets written into the cache, so it only ever runs once per image.
  */
-function findCachedVideo(resultPath: string): string | null {
+function findCachedVideo(resultPath: string, pose: VideoPose): string | null {
   const bytes = read(resultPath);
-  const key = videoCacheKey(bytes, VIDEO_DURATION_SECONDS);
+  const key = videoCacheKey(bytes, VIDEO_DURATION_SECONDS, pose);
 
   const hit = getVideo(key);
   if (hit && storedFileExists(hit)) {
@@ -391,9 +429,10 @@ function findCachedVideo(resultPath: string): string | null {
     .prepare(
       `SELECT video_path FROM outfit
         WHERE result_path = ? AND video_status = 'success' AND video_path IS NOT NULL
+          AND video_pose IS ?
         LIMIT 1`,
     )
-    .get(resultPath) as {video_path: string} | undefined;
+    .get(resultPath, pose) as {video_path: string} | undefined;
 
   if (sibling && storedFileExists(sibling.video_path)) {
     putVideo(key, sibling.video_path);
@@ -404,15 +443,22 @@ function findCachedVideo(resultPath: string): string | null {
   return null;
 }
 
-async function makeVideo(id: string, resultPath: string): Promise<void> {
+async function makeVideo(
+  id: string,
+  userId: string,
+  resultPath: string,
+  pose: VideoPose,
+): Promise<void> {
   try {
     const bytes = read(resultPath);
     const {resultPath: videoPath} = await runVideo(
+      userId,
       bytes,
       contentTypeForExt(resultPath),
+      pose,
     );
-    // Index it before anything else asks for the same image.
-    putVideo(videoCacheKey(bytes, VIDEO_DURATION_SECONDS), videoPath);
+    // Index it before anything else asks for the same image in this pose.
+    putVideo(videoCacheKey(bytes, VIDEO_DURATION_SECONDS, pose), videoPath);
     db.prepare(
       "UPDATE outfit SET video_status = 'success', video_path = ? WHERE id = ?",
     ).run(videoPath, id);
@@ -437,8 +483,11 @@ async function makeVideo(id: string, resultPath: string): Promise<void> {
 
 outfitRoutes.delete('/:id', (c) => {
   const id = c.req.param('id');
-  db.prepare('DELETE FROM outfit_item WHERE outfit_id = ?').run(id);
-  db.prepare('DELETE FROM outfit WHERE id = ?').run(id);
+  // Resolved first, so deleting somebody else's outfit id is a 404 rather than
+  // a silent no-op that looks like it worked.
+  const row = getOutfitRow(currentUser(c).id, id);
+  db.prepare('DELETE FROM outfit_item WHERE outfit_id = ?').run(row.id);
+  db.prepare('DELETE FROM outfit WHERE id = ?').run(row.id);
   // The result image stays in storage: it may be a cached chain step another
   // outfit still points at.
   return c.body(null, 204);

@@ -143,6 +143,45 @@ const MAP: Record<string, {message: string; hint?: string; status?: ContentfulSt
     hint: 'Choose a photo instead',
     status: 503,
   },
+  not_signed_in: {
+    // The signed-out case, once accounts exist. Its own code rather than
+    // reusing not_paired: the apps turn one into a sign-in screen and the
+    // other into a pairing code, and telling somebody to find a laptop when
+    // they simply need to sign in would be a dead end.
+    message: 'Sign in to see your hanger.',
+    hint: 'Sign in',
+    status: 401,
+  },
+  not_paired: {
+    // The phone asking for something before it has been let in. Its own screen
+    // turns this into the pairing flow, so the sentence only has to survive
+    // being read somewhere unexpected.
+    message: 'This phone is not paired with your hanger yet.',
+    hint: 'Pair this phone',
+    status: 401,
+  },
+  pairing_code_wrong: {
+    message: "That code didn't work. Check it against your laptop's screen.",
+    hint: 'Try again',
+    status: 400,
+  },
+  pairing_code_expired: {
+    message: 'That code has expired. Show a new one on your laptop.',
+    hint: 'Show a new code',
+    status: 410,
+  },
+  pairing_code_used: {
+    message: 'That code has already been used by another phone.',
+    hint: 'Show a new code',
+    status: 409,
+  },
+  local_only: {
+    // Minting codes and revoking devices are the laptop's business. A phone
+    // that could do either could let in a second phone on its own say-so.
+    message: 'That can only be done on the computer running Hanger.',
+    hint: 'Open Hanger on your laptop',
+    status: 403,
+  },
   invalid_parameter: {
     // Always our bug, never the shopper's — the request was malformed. They
     // get a plain sentence; the server log carries the `error_message` that

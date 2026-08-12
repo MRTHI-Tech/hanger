@@ -7,10 +7,10 @@ import {Button} from '@astryxdesign/core/Button';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
 import {Badge} from '@astryxdesign/core/Badge';
-import {api, mediaUrl} from '../api';
+import {api, mediaUrl} from '@hanger/shared/api';
 import {ErrorNote} from '../components/ErrorNote';
-import {formatAmount} from '../format';
-import type {Outfit} from '../../shared/types';
+import {formatAmount} from '@hanger/shared/format';
+import type {Outfit} from '@hanger/shared/types';
 
 /** Looks you've already put together, newest first. */
 export function Outfits({
@@ -68,12 +68,19 @@ export function Outfits({
 
   return (
     <VStack padding={4} gap={4}>
-      <VStack gap={1}>
-        <Heading level={2}>Your outfits</Heading>
-        <Text type="supporting">
-          {outfits.length} {outfits.length === 1 ? 'look' : 'looks'}
-        </Text>
-      </VStack>
+      {/* Building is what this screen is for, so it sits with the heading
+          rather than under however many looks you've already saved. */}
+      <HStack gap={2} vAlign="center" justify="between">
+        <VStack gap={1}>
+          <Heading level={2}>Your outfits</Heading>
+          <Text type="supporting">
+            {outfits.length} {outfits.length === 1 ? 'look' : 'looks'}
+          </Text>
+        </VStack>
+        <div className="shrink-0">
+          <Button label="Build an outfit" variant="primary" size="sm" onClick={onBuild} />
+        </div>
+      </HStack>
 
       <div className="grid grid-cols-2 gap-3">
         {outfits.map((outfit) => (
@@ -119,8 +126,6 @@ export function Outfits({
           </VStack>
         ))}
       </div>
-
-      <Button label="Build another" variant="primary" onClick={onBuild} />
     </VStack>
   );
 }

@@ -1,6 +1,6 @@
 import {Banner} from '@astryxdesign/core/Banner';
 import {Button} from '@astryxdesign/core/Button';
-import {HangerError} from '../api';
+import {HangerError} from '@hanger/shared/api';
 
 /**
  * The single place an error becomes visible. §13: a human sentence and a way

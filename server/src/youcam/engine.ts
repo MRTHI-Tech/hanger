@@ -1,4 +1,5 @@
 import {mockMode} from '../env.js';
+import {onSamples} from '../budget.js';
 import {
   mockEnhance,
   mockRunCloth,
@@ -12,15 +13,28 @@ import {
   pollTask,
   uploadFile,
   VIDEO_DURATION_SECONDS,
+  VIDEO_UNIT_COST,
   type ClothTaskInput,
 } from './client.js';
 import {extForContentType, save} from '../storage.js';
+import type {VideoPose} from '../types.js';
 
 /**
  * The one seam between mock and live. Every caller above this line — try-on,
  * the chain engine, the alternatives round-trip — is written once and runs
  * either way.
+ *
+ * Two things can put a call on the mock path, and the callers know about
+ * neither: the server is in sample mode, or this particular person has used up
+ * their allowance (§12.3). The second is why every function here takes a user.
+ * It is the cheapest possible place to make that decision — one `if`, in the
+ * one function that was already choosing.
  */
+
+/** Sample results for this person, either because of the server or their spend. */
+function samples(userId: string, units = 1): boolean {
+  return mockMode || onSamples(userId, units);
+}
 
 export interface RunClothInput extends ClothTaskInput {
   /** Shown in mock output; ignored live. */
@@ -35,25 +49,30 @@ export interface ClothOutcome {
 }
 
 export async function uploadImage(
+  userId: string,
   bytes: Buffer,
   contentType: string,
   fileName: string,
 ): Promise<string> {
-  return mockMode
+  // Uploading costs nothing on its own, but a file id from the live API is no
+  // use to a mock run and vice versa — so it follows the same path the call
+  // that consumes it will take.
+  return samples(userId)
     ? mockUploadFile(bytes)
     : uploadFile(bytes, contentType, fileName);
 }
 
 export async function runCloth(
+  userId: string,
   input: RunClothInput,
   onTick?: (elapsedMs: number) => void,
 ): Promise<ClothOutcome> {
-  if (mockMode) {
+  if (samples(userId)) {
     const {bytes, contentType} = await mockRunCloth(input, onTick);
     return {resultPath: save(bytes, extForContentType(contentType))};
   }
 
-  const taskId = await createClothTask(input);
+  const taskId = await createClothTask(userId, input);
   const url = await pollTask('cloth-v3', taskId, onTick);
   const {bytes, contentType} = await downloadResult(url);
   return {resultPath: save(bytes, extForContentType(contentType))};
@@ -66,19 +85,25 @@ export async function runCloth(
  * too, since a local server isn't reachable from Perfect Corp.
  */
 export async function runVideo(
+  userId: string,
   imageBytes: Buffer,
   contentType: string,
+  pose: VideoPose,
   onTick?: (elapsedMs: number) => void,
 ): Promise<ClothOutcome> {
-  if (mockMode) {
-    const {bytes, contentType: ct} = await mockRunVideo(imageBytes, onTick);
+  // A video is several units, not one, so the allowance is checked against
+  // what it actually costs — otherwise somebody one unit from their limit
+  // could still spend four.
+  if (samples(userId, VIDEO_UNIT_COST)) {
+    const {bytes, contentType: ct} = await mockRunVideo(imageBytes, pose, onTick);
     return {resultPath: save(bytes, extForContentType(ct))};
   }
 
   const fileId = await uploadFile(imageBytes, contentType, 'outfit.jpg');
-  const taskId = await createVideoTask({
+  const taskId = await createVideoTask(userId, {
     fileId,
     durationSeconds: VIDEO_DURATION_SECONDS,
+    pose,
   });
   const url = await pollTask('image-to-video/youcam', taskId, onTick, 300_000);
   const {bytes, contentType: ct} = await downloadResult(url);
@@ -99,8 +124,11 @@ function extForVideoContentType(contentType: string): string {
  * returns null rather than guessing — callers fall back to "open the product
  * page" instead of failing silently.
  */
-export async function enhanceImage(bytes: Buffer): Promise<Buffer | null> {
-  if (mockMode) return mockEnhance(bytes);
+export async function enhanceImage(
+  userId: string,
+  bytes: Buffer,
+): Promise<Buffer | null> {
+  if (samples(userId)) return mockEnhance(bytes);
   return null;
 }
 

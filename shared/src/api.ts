@@ -10,9 +10,86 @@ import type {
   PersonUploadResult,
   TryOnCategory,
   TryOnResult,
-} from '../shared/types';
+  VideoPose,
+} from './types';
 
-export const API_BASE = 'http://localhost:8787';
+/**
+ * Where the server is.
+ *
+ * The side panel runs on the same machine as the server, so localhost is right
+ * for it and always will be. A phone is a different machine on the same
+ * Wi-Fi — localhost there means the phone itself. So the address is settable,
+ * and each client decides its own before making a call.
+ */
+let apiBase = 'http://localhost:8787';
+
+export function setApiBase(url: string): void {
+  apiBase = url.replace(/\/+$/, '');
+}
+
+export function getApiBase(): string {
+  return apiBase;
+}
+
+/**
+ * Which device is calling.
+ *
+ * The side panel never sets one and never needs to: it reaches the server on
+ * loopback, and the server takes that as proof of who it is. A phone is a
+ * different machine, so it carries the token it earned by pairing.
+ */
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+/**
+ * A signed-in session, asked for fresh on every call.
+ *
+ * Session tokens are short-lived by design — a minute or so — so holding one
+ * in a variable would mean every request after the first minute failing. The
+ * provider hands back a current one, refreshing it if it has to.
+ *
+ * Takes precedence over the device token: somebody who has signed in *is* the
+ * account holder, and a paired phone is only ever a stand-in for one.
+ */
+let tokenProvider: (() => Promise<string | null>) | null = null;
+
+export function setAuthTokenProvider(
+  provider: (() => Promise<string | null>) | null,
+): void {
+  tokenProvider = provider;
+}
+
+async function withAuth(init?: RequestInit): Promise<RequestInit | undefined> {
+  const token = (tokenProvider ? await tokenProvider() : null) ?? authToken;
+  if (!token) return init;
+  return {
+    ...init,
+    headers: {...init?.headers, Authorization: `Bearer ${token}`},
+  };
+}
+
+/**
+ * Called whenever the server says this device isn't paired — including when it
+ * was, and has just been revoked from the laptop. Every screen would otherwise
+ * have to handle that one code itself, and the right answer is the same
+ * everywhere: stop, and ask to be let in again.
+ */
+export type UnauthorizedReason = 'not_paired' | 'not_signed_in';
+
+let onUnauthorized: ((reason: UnauthorizedReason) => void) | null = null;
+
+export function setUnauthorizedHandler(
+  handler: ((reason: UnauthorizedReason) => void) | null,
+): void {
+  onUnauthorized = handler;
+}
 
 /**
  * An error carrying the human sentence from the server's §13 map. Every screen
@@ -34,7 +111,7 @@ const OFFLINE_MESSAGE =
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, init);
+    res = await fetch(`${apiBase}${path}`, await withAuth(init));
   } catch {
     throw new HangerError('server_unreachable', OFFLINE_MESSAGE);
   }
@@ -54,6 +131,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* non-JSON error body; keep the generic sentence */
     }
+    if (code === 'not_paired' || code === 'not_signed_in') onUnauthorized?.(code);
     throw new HangerError(code, message, hint);
   }
   if (res.status === 204) return undefined as T;
@@ -117,7 +195,7 @@ export const api = {
    * and the bytes live in the panel from then on.
    */
   takeHandoffPhoto: async (token: string): Promise<File> => {
-    const res = await fetch(`${API_BASE}/handoff/${token}/photo`);
+    const res = await fetch(`${apiBase}/handoff/${token}/photo`, await withAuth());
     if (!res.ok) {
       throw new HangerError(
         'not_found',
@@ -158,8 +236,12 @@ export const api = {
   getOutfit: (id: string) => request<Outfit>(`/outfits/${id}`),
 
   /** Start the share video. Poll getOutfit and watch `video` for the result. */
-  createOutfitVideo: (id: string) =>
-    request<Outfit>(`/outfits/${id}/video`, {method: 'POST'}),
+  createOutfitVideo: (id: string, pose?: VideoPose) =>
+    request<Outfit>(`/outfits/${id}/video`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({pose}),
+    }),
 
   listOutfits: () => request<Outfit[]>('/outfits'),
 
@@ -178,7 +260,74 @@ export const api = {
       `/alternatives/${id}/save`,
       {method: 'POST'},
     ),
+
+  /** Put a code on the laptop's screen. Only the laptop may ask. */
+  createPairingCode: () => request<PairingCode>('/pair', {method: 'POST'}),
+
+  /** What the laptop polls while the code is up. */
+  pairingStatus: (code: string) =>
+    request<PairingStatus>(`/pair/${encodeURIComponent(code)}/status`),
+
+  /**
+   * The phone spending the code. Returns the token it should keep and send on
+   * everything afterwards — hand it to setAuthToken.
+   */
+  claimPairingCode: (code: string, name?: string) =>
+    request<{token: string; device: Device}>('/pair/claim', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code, name}),
+    }),
+
+  /** "Who am I, and what have I got left?" — null device means the laptop. */
+  whoAmI: () => request<WhoAmI>('/pair/me'),
+
+  listDevices: () => request<Device[]>('/pair/devices'),
+
+  removeDevice: (id: string) =>
+    request<void>(`/pair/devices/${id}`, {method: 'DELETE'}),
 };
+
+export interface Device {
+  id: string;
+  /** Whose hanger this phone was let into. */
+  userId: string;
+  name: string;
+  pairedAt: number;
+  lastSeenAt: number | null;
+}
+
+export interface WhoAmI {
+  local: boolean;
+  device: Device | null;
+  allowance: Allowance;
+}
+
+/**
+ * What this person may still spend on real results. Past it, everything still
+ * works — the results are samples, with the caption already drawn on them.
+ */
+export interface Allowance {
+  unitsSpent: number;
+  /** 0 means no personal limit on this server. */
+  unitAllowance: number;
+  onSamples: boolean;
+}
+
+export interface PairingCode {
+  /** Six characters, read off the laptop and typed on the phone. */
+  code: string;
+  expiresAt: number;
+  /** Null when this machine is on no network a phone could reach. */
+  url: string | null;
+  qrUrl: string | null;
+  addresses: string[];
+}
+
+export type PairingStatus =
+  | {status: 'waiting'}
+  | {status: 'expired'}
+  | {status: 'paired'; device: Device | null};
 
 export interface SaveGarmentMeta {
   title: string;
@@ -212,7 +361,7 @@ export interface Handoff {
 
 export function mediaUrl(pathOrUrl: string): string {
   if (/^https?:/.test(pathOrUrl)) return pathOrUrl;
-  return `${API_BASE}${pathOrUrl}`;
+  return `${apiBase}${pathOrUrl}`;
 }
 
 export type {Alternative};

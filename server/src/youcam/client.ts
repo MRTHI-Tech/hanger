@@ -1,7 +1,7 @@
 import {env} from '../env.js';
 import {assertBudget, recordSpend} from '../budget.js';
 import {CodedError} from './errors.js';
-import type {TryOnCategory} from '../types.js';
+import type {TryOnCategory, VideoPose} from '../types.js';
 
 /**
  * Live YouCam / Perfect Corp client (§5).
@@ -128,7 +128,10 @@ export interface ClothTaskInput {
 }
 
 /** §5.2 — create the try-on task. Returns the task id. */
-export async function createClothTask(input: ClothTaskInput): Promise<string> {
+export async function createClothTask(
+  userId: string,
+  input: ClothTaskInput,
+): Promise<string> {
   assertBudget(1);
 
   const payload: Record<string, unknown> = {
@@ -157,7 +160,7 @@ export async function createClothTask(input: ClothTaskInput): Promise<string> {
 
   // The units are committed the moment the task exists, so log it here rather
   // than on success — a task that fails later still cost us.
-  recordSpend('cloth-v3', 1);
+  recordSpend(userId, 'cloth-v3', 1);
   return taskId;
 }
 
@@ -176,6 +179,8 @@ export interface VideoTaskInput {
   fileId: string;
   /** 5 or 10 — the only two the API accepts. */
   durationSeconds: 5 | 10;
+  /** Which motion to ask for. */
+  pose: VideoPose;
 }
 
 /**
@@ -184,10 +189,32 @@ export interface VideoTaskInput {
  * "the 0th style positive_prompt 'None' is in invalid language unknown" —
  * the default is literally the string "None", which fails language detection.
  * Confirmed against a live call, 5 Aug 2026.
+ *
+ * That failure is also why every one of these is a full English sentence and
+ * why there is no empty case: a pose the map doesn't cover falls back to the
+ * lookbook string rather than sending nothing.
+ *
+ * All four keep the framing steady and the subject standing. The model
+ * animates outward from the still it's handed, so a prompt that asks for a
+ * pose the photo isn't near produces mush rather than the pose.
  */
-const VIDEO_PROMPT =
-  'The person stands still and turns slightly, showing the outfit. ' +
-  'Slow gentle camera push-in, natural lighting, fashion lookbook.';
+const VIDEO_PROMPTS: Record<VideoPose, string> = {
+  lookbook:
+    'The person stands still and turns slightly, showing the outfit. ' +
+    'Slow gentle camera push-in, natural lighting, fashion lookbook.',
+  turn:
+    'The person turns around slowly on the spot to show the back of the outfit, ' +
+    'then turns to face the camera again. Fixed camera, natural lighting, ' +
+    'fashion lookbook.',
+  walk:
+    'The person walks slowly towards the camera with a relaxed runway stride, ' +
+    'the clothes moving naturally as they step. Fixed camera at eye level, ' +
+    'natural lighting, fashion runway.',
+  pose:
+    'The person shifts their weight onto one leg and rests a hand on their hip, ' +
+    'holding a relaxed fashion pose and looking at the camera. ' +
+    'Slow gentle camera push-in, natural lighting, fashion editorial.',
+};
 
 /**
  * AI Image to Video (`/s2s/v2.0/task/image-to-video/youcam`) — turns the
@@ -197,8 +224,11 @@ const VIDEO_PROMPT =
  * completes to an mp4. Field names are `src_file_id` (flat, like cloth-v3),
  * `dst_duration`, and a bare `'720'` — not `duration` or `'720p'`.
  */
-export async function createVideoTask(input: VideoTaskInput): Promise<string> {
-  assertBudget(1);
+export async function createVideoTask(
+  userId: string,
+  input: VideoTaskInput,
+): Promise<string> {
+  assertBudget(VIDEO_UNIT_COST);
 
   const res = await fetchWithRetry(`${BASE}/s2s/v2.0/task/image-to-video/youcam`, {
     method: 'POST',
@@ -207,7 +237,7 @@ export async function createVideoTask(input: VideoTaskInput): Promise<string> {
       src_file_id: input.fileId,
       dst_duration: input.durationSeconds,
       resolution: '720',
-      prompt: VIDEO_PROMPT,
+      prompt: VIDEO_PROMPTS[input.pose] ?? VIDEO_PROMPTS.lookbook,
     }),
   });
   if (!res.ok) await readError(res);
@@ -219,7 +249,7 @@ export async function createVideoTask(input: VideoTaskInput): Promise<string> {
     throw new CodedError('upstream_error', 'video task creation returned no task_id');
   }
 
-  recordSpend('image-to-video', VIDEO_UNIT_COST);
+  recordSpend(userId, 'image-to-video', VIDEO_UNIT_COST);
   return taskId;
 }
 

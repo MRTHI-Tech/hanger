@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {Plus} from 'lucide-react';
 import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
@@ -6,29 +7,28 @@ import {Heading} from '@astryxdesign/core/Heading';
 import {Button} from '@astryxdesign/core/Button';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
-import {Badge} from '@astryxdesign/core/Badge';
-import {api} from '../api';
+import {api, mediaUrl} from '@hanger/shared/api';
 import {GarmentCard} from '../components/GarmentCard';
 import {ErrorNote} from '../components/ErrorNote';
+import {Sheet} from '../components/Sheet';
+import {formatPrice} from '@hanger/shared/format';
 import {
   CATEGORY_LABELS,
   isOwned,
   type Garment,
   type GarmentCategory,
-} from '../../shared/types';
+} from '@hanger/shared/types';
 
 /**
  * Your Hanger: everything kept, from every shop. The cross-retailer mix is the
  * point, so the retailer name sits on every card.
  */
 export function Hanger({
-  onBuildOutfit,
   onAddOwned,
   onTryOn,
   onFindAlternatives,
   refreshKey,
 }: {
-  onBuildOutfit: () => void;
   onAddOwned: () => void;
   onTryOn: (garment: Garment) => void;
   onFindAlternatives: (garment: Garment) => void;
@@ -96,12 +96,27 @@ export function Hanger({
 
   return (
     <VStack padding={4} gap={4}>
-      <VStack gap={1}>
-        <Heading level={2}>Your Hanger</Heading>
-        <Text type="supporting">
-          {summarise(garments.length, retailers.size, ownedCount)}
-        </Text>
-      </VStack>
+      {/* Adding sits with the heading, not at the foot of the grid: forty
+          pieces deep, nobody scrolls to the bottom to find it. */}
+      <HStack gap={2} vAlign="center" justify="between">
+        <VStack gap={1}>
+          <Heading level={2}>Your Hanger</Heading>
+          <Text type="supporting">
+            {summarise(garments.length, retailers.size, ownedCount)}
+          </Text>
+        </VStack>
+        <div className="shrink-0">
+          {/* Short here because the row is 350px wide; the empty state and the
+              outfit builder still say "Add something you own" in full. */}
+          <Button
+            label="Add a piece"
+            variant="primary"
+            size="sm"
+            icon={<Plus size="1em" aria-hidden />}
+            onClick={onAddOwned}
+          />
+        </div>
+      </HStack>
 
       {categories.length > 1 && (
         <HStack gap={1.5} isScrollable>
@@ -139,57 +154,107 @@ export function Hanger({
         ))}
       </div>
 
-      {selected && (
-        <VStack gap={2}>
-          <Text type="label" maxLines={1}>
-            {selected.title}
-          </Text>
-          <HStack gap={2} wrap="wrap">
-            <Badge variant="neutral" label={CATEGORY_LABELS[selected.category]} />
-            <Badge
-              variant="neutral"
-              label={selected.retailer ?? 'Yours'}
-            />
-          </HStack>
-          <Button
-            label="Try this on again"
-            variant="secondary"
-            onClick={() => onTryOn(selected)}
+      {/* What you can do with one piece rides above the screen rather than in
+          it: tapping a card near the top used to push its actions below the
+          fold, where you'd never find them. */}
+      <Sheet
+        title={selected?.title ?? 'This piece'}
+        isOpen={selected != null}
+        onClose={() => setSelected(null)}>
+        {selected && (
+          <GarmentActions
+            garment={selected}
+            onTryOn={() => {
+              setSelected(null);
+              onTryOn(selected);
+            }}
+            onFindAlternatives={() => {
+              setSelected(null);
+              onFindAlternatives(selected);
+            }}
           />
-          {/* Both of these are about the shop it came from. A piece you own
-              came from your own floor: there's nothing to open, and "find it
-              cheaper" is the wrong question about something already yours. */}
-          {!isOwned(selected) && (
-            <>
-              <Button
-                label="Find it cheaper"
-                variant="secondary"
-                onClick={() => onFindAlternatives(selected)}
-              />
-              <Button
-                label="Open the shop's page"
-                variant="ghost"
-                onClick={() => {
-                  if (selected.productUrl) {
-                    window.open(selected.productUrl, '_blank');
-                  }
-                }}
-              />
-            </>
-          )}
+        )}
+      </Sheet>
+    </VStack>
+  );
+}
+
+/**
+ * The contents of the sheet: enough of the piece to be sure it's the one you
+ * meant, then what you can do with it. Where it's from and what it cost read
+ * as one line — three stacked badges was more furniture than fact.
+ */
+function GarmentActions({
+  garment,
+  onTryOn,
+  onFindAlternatives,
+}: {
+  garment: Garment;
+  onTryOn: () => void;
+  onFindAlternatives: () => void;
+}) {
+  return (
+    <VStack gap={3}>
+      <HStack gap={3} vAlign="start">
+        <img
+          src={mediaUrl(garment.imageUrl)}
+          alt=""
+          className="shrink-0 overflow-hidden rounded-xl"
+          style={{
+            width: '4rem',
+            aspectRatio: '3 / 4',
+            objectFit: 'cover',
+            backgroundColor: 'var(--color-background-muted)',
+            border: '1px solid var(--color-border)',
+          }}
+        />
+        <VStack gap={0.5}>
+          <Text type="label" maxLines={2}>
+            {garment.title}
+          </Text>
+          <Text type="supporting" maxLines={1}>
+            {describe(garment)}
+          </Text>
         </VStack>
-      )}
+      </HStack>
 
       <VStack gap={2}>
-        <Button label="Build an outfit" variant="primary" onClick={onBuildOutfit} />
-        <Button
-          label="Add something you own"
-          variant="secondary"
-          onClick={onAddOwned}
-        />
+        <Button label="Try this on again" variant="primary" onClick={onTryOn} />
+        {/* Both of these are about the shop it came from. A piece you own
+            came from your own floor: there's nothing to open, and "find it
+            cheaper" is the wrong question about something already yours. */}
+        {!isOwned(garment) && (
+          <>
+            <Button
+              label="Find it cheaper"
+              variant="secondary"
+              onClick={onFindAlternatives}
+            />
+            <Button
+              label="Open the shop's page"
+              variant="ghost"
+              onClick={() => {
+                if (garment.productUrl) {
+                  window.open(garment.productUrl, '_blank');
+                }
+              }}
+            />
+          </>
+        )}
       </VStack>
     </VStack>
   );
+}
+
+/** Category, shop and price on one line, skipping whatever we don't know. */
+function describe(garment: Garment): string {
+  return [
+    CATEGORY_LABELS[garment.category],
+    garment.retailer ?? 'Yours',
+    garment.price ? formatPrice(garment.price) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**

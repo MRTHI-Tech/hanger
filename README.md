@@ -40,6 +40,9 @@ That's the whole setup. **No credentials are needed.** `MOCK_MODE` defaults to
 - the backend on `http://localhost:8787`
 - a watch build of the extension into `extension/dist/`
 
+For the phone app instead, `npm run dev:phone` starts the backend and the phone
+app together — see [On your phone](#on-your-phone).
+
 ### Load the extension
 
 1. Open `chrome://extensions`.
@@ -49,9 +52,11 @@ That's the whole setup. **No credentials are needed.** `MOCK_MODE` defaults to
 5. Pin Hanger to the toolbar, then open any shop's product page. A **Try this
    on** button appears at the bottom right.
 
-The extension ID is assigned by Chrome at load time; nothing needs configuring
-for it. Reloading after a rebuild is the circular-arrow button on the card in
-`chrome://extensions`.
+The extension ID is assigned by Chrome at load time. Reloading after a rebuild
+is the circular-arrow button on the card in `chrome://extensions`.
+
+If Clerk sign-in is enabled, add `chrome-extension://<that-id>` to the Clerk
+instance's allowed origins. Keep that ID stable once the extension is shared.
 
 ### Going live
 
@@ -61,12 +66,24 @@ Copy `.env.example` to `server/.env` and fill in what you have:
 |---|---|---|
 | `YOUCAM_API_KEY` | Real try-on | [yce.perfectcorp.com/api-console](https://yce.perfectcorp.com/api-console/en/) → Account → Redeem Code → API Keys |
 | `SERPAPI_KEY` | Alternatives | [serpapi.com/manage-api-key](https://serpapi.com/manage-api-key) |
+| `CLERK_SECRET_KEY` | Account verification on the server | Clerk dashboard → API keys |
+| `CLERK_PUBLISHABLE_KEY` | Sign-in in the extension | Clerk dashboard → API keys |
 | `MOCK_MODE` | Set `false` to spend real units | — |
-| `UNIT_BUDGET` | Spend cap, default 600 | — |
+| `UNIT_BUDGET` | Spend cap for the whole server, default 600 | — |
+| `USER_UNIT_CAP` | What one visitor may spend before their results become samples, default 20. `0` removes the limit | — |
 | `MOCK_DELAY_MS` | Mock latency, default 8000 | — |
 
 Without `YOUCAM_API_KEY` the server stays in mock mode even if `MOCK_MODE=false`,
 rather than failing every request with an auth error.
+
+With both Clerk keys present, the extension shows sign-in before opening the
+hanger and sends a fresh session token with every API request. The exit icon in
+the panel header signs out only that extension session. With no Clerk keys, the
+credential-free local-user mode is unchanged.
+
+First-time account creation opens Clerk's hosted sign-up page in a normal tab.
+This keeps CAPTCHA and other browser security checks out of the MV3 side panel;
+after creating the account, return to the panel and sign in there.
 
 ---
 
@@ -117,7 +134,11 @@ the panel only ever sees a `/media/` URL.
 ```
 server/
   src/
-    index.ts          Hono app, CORS for chrome-extension://*
+    index.ts          Hono app, CORS for chrome-extension://* and the LAN
+    auth.ts           one seam: whose wardrobe is this request?
+    users.ts          the user table; every row of clothing has an owner
+    media.ts          signed, expiring image links (an <img> sends no headers)
+    pairing.ts        pairing codes (memory) and device tokens (SQLite)
     env.ts db.ts      zod-validated env; migrations run on boot
     storage.ts        local disk, served at /media/:name
     images.ts         header-only dimension probe + §5.4 validation
@@ -131,15 +152,28 @@ server/
       tryon.ts        single garment
       chain.ts        multi-garment composition
       errors.ts       error code → human sentence
-    routes/           person, garments, tryon, outfits, alternatives, dev
+    routes/           person, garments, tryon, outfits, alternatives, pairing, dev
   fixtures/           sample data — a fresh clone runs on these
 extension/
   src/
     content/          detection, scraping, image ranking, same-origin fetch
     background/       service worker
     sidepanel/        React app, screens and components
-    themes/butter/    the Astryx butter theme
   scripts/pages/      saved product pages from real shops, for the scraper test
+shared/               one copy of whatever more than one app needs
+  src/
+    types.ts          the wire contract — server, panel and phone
+    api.ts            typed client for the backend, with a settable base URL
+    format.ts         prices
+    theme/            the Astryx butter theme
+  scripts/icon.mjs    the hanger glyph, rasterised to PNG
+pwa/                  the phone app — see PWA.md
+  src/
+    App.tsx           header, one scrolling region, bottom tab bar
+    server.ts         works out which machine the server is on
+    device.ts         this phone's pairing token
+    screens/          Hanger, Outfits, OutfitDetail, Me, AddSheet, Pair
+    components/       GarmentCard, Sheet, TabBar, FilterChip, ErrorNote, Later
 ```
 
 ### About the sample data
@@ -149,6 +183,64 @@ garment layer per chain step, so mock mode genuinely demonstrates composition
 (three steps really do produce an image wearing three garments) and nobody can
 mistake a fixture for a real try-on. Every mock result carries a "Sample
 result — no API credits used" caption.
+
+---
+
+## On your phone
+
+There is a second app in `pwa/`: the same hanger, on a phone. It talks to the
+same server and the same database, so anything kept from the side panel is
+already there. [PWA.md](PWA.md) is its specification and build order.
+
+**Today it is read-only** — Phases 0–3 of that plan. It shows Your Hanger, your
+outfits and their buy lists. Adding a garment, trying one on and sharing to
+WhatsApp are the phases after this one, and the app says so where each will go.
+
+```bash
+npm run dev:phone
+```
+
+That starts the backend and serves the app on `http://localhost:5174`, bound to
+every network interface. Two ways to look at it:
+
+- **On the laptop** — open `http://localhost:5174` and make the window
+  phone-shaped, or use the browser's device toolbar.
+- **On your actual phone** — same Wi-Fi as the laptop, then open
+  `http://<your-laptop's-LAN-IP>:5174`. The server prints the address it can be
+  reached on at startup (`[hanger] phone handoff: reachable on …`) — same host,
+  port 5174. Safari or Chrome's menu will offer to add it to your home screen,
+  where it opens without browser chrome.
+
+The app finds the server by itself: whatever host served the page, on port 8787.
+So the LAN address works with nothing to configure. If that guess is ever wrong,
+**You → Where the server is** takes an address and remembers it.
+
+### Pairing
+
+A phone has to be let in once. On the laptop, tap the **phone icon** in the side
+panel's header: it shows six characters. Type those into the phone, and it stays
+paired until you remove it. The same sheet lists every phone that can see your
+hanger, with a Remove next to each.
+
+There's a QR code on that sheet too, for a phone that doesn't have the app yet —
+it opens the app already carrying the code.
+
+Why any of this exists: the side panel runs on the same machine as the server,
+so reaching `localhost` is itself proof of who it is, and the panel carries no
+credential. A phone is a different machine, and being on your Wi-Fi is not the
+same claim as owning the wardrobe. The full reasoning is at the top of
+[server/src/auth.ts](server/src/auth.ts).
+
+Viewing the phone app on the laptop itself needs no pairing, for the same
+reason — it's on loopback.
+
+Two things to know:
+
+- The phone must be on the **same Wi-Fi** as the laptop, and the laptop must be
+  running the server. That's the only failure this app really has, and the error
+  screen says so.
+- The camera needs **HTTPS**, which plain LAN http isn't. Nothing here uses the
+  camera yet, so it doesn't bite until Phase 4.
 
 ---
 
@@ -188,9 +280,11 @@ Two caveats worth stating plainly:
 
 ```bash
 npm run dev                              # server + extension watch build
-npm run typecheck                        # both packages
+npm run dev:phone                        # server + phone app on :5174
+npm run typecheck                        # every package
 npm run test:scrape --workspace extension  # scraper against saved shop pages
 npm run build --workspace extension      # production extension build
+npm run build:pwa                        # production phone build
 ```
 
 To preview the side panel as an ordinary web page (handy for design work):

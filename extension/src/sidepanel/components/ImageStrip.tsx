@@ -2,7 +2,7 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Banner} from '@astryxdesign/core/Banner';
-import type {ScoredImage} from '../../shared/types';
+import type {ScoredImage} from '@hanger/shared/types';
 
 /**
  * "Which photo shows this best?" (§9.3)

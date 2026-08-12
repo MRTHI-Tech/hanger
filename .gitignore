@@ -12,3 +12,7 @@ server/data/
 server/storage/
 dist-harness/
 .scratch/
+
+# Generated before every phone build (scripts/make-assets.mjs)
+pwa/public/icons/
+pwa/public/fonts/

@@ -16,6 +16,7 @@ import {enhanceImage} from '../youcam/engine.js';
 import {startTryOn} from '../youcam/tryon.js';
 import {garmentJson, getGarmentRow} from './garments.js';
 import {requirePerson} from './person.js';
+import {currentUser} from '../auth.js';
 import {isTryOnable, type GarmentRow, type Price} from '../types.js';
 
 export const alternativeRoutes = new Hono();
@@ -62,10 +63,11 @@ function originalPrice(garment: GarmentRow): Price | null {
 }
 
 alternativeRoutes.get('/', async (c) => {
+  const user = currentUser(c);
   const garmentId = c.req.query('garmentId');
   if (!garmentId) throw new CodedError('invalid_request');
 
-  const garment = getGarmentRow(garmentId);
+  const garment = getGarmentRow(user.id, garmentId);
   const price = originalPrice(garment);
   const refresh = c.req.query('refresh') === '1';
 
@@ -102,9 +104,12 @@ alternativeRoutes.get('/', async (c) => {
  * take an alternative, make it a real garment, and fit it straight away.
  */
 alternativeRoutes.post('/:id/save', async (c) => {
+  const user = currentUser(c);
   const alternative = getAlternativeRow(c.req.param('id'));
-  const original = getGarmentRow(alternative.garment_id);
-  const person = requirePerson();
+  // Scoped through the garment the alternative hangs off: an alternative id is
+  // only reachable by whoever owns the piece it was found for.
+  const original = getGarmentRow(user.id, alternative.garment_id);
+  const person = requirePerson(user.id);
 
   const {bytes, contentType} = await fetchAlternativeImage(alternative);
 
@@ -118,7 +123,7 @@ alternativeRoutes.post('/:id/save', async (c) => {
   ) {
     // Lens thumbnails are often a few hundred pixels. Try to rescue it before
     // giving up (§10.2).
-    const enhanced = await enhanceImage(bytes);
+    const enhanced = await enhanceImage(user.id, bytes);
     const enhancedProbe = enhanced ? probeImage(enhanced) : null;
     if (
       enhanced &&
@@ -140,11 +145,12 @@ alternativeRoutes.post('/:id/save', async (c) => {
 
   db.prepare(
     `INSERT INTO garment
-       (id, title, brand, retailer, product_url, price_amount, price_currency,
-        category, image_path, source_image_url, hung, saved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+       (id, user_id, title, brand, retailer, product_url, price_amount,
+        price_currency, category, image_path, source_image_url, hung, saved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
   ).run(
     id,
+    user.id,
     alternative.title ?? original.title,
     alternative.source,
     retailer,
@@ -157,14 +163,14 @@ alternativeRoutes.post('/:id/save', async (c) => {
     Date.now(),
   );
 
-  const garment = getGarmentRow(id);
+  const garment = getGarmentRow(user.id, id);
   console.log(
     `[hanger] saved an alternative: ${garment.title} from ${garment.retailer}`,
   );
 
   let tryonId: string | null = null;
   if (isTryOnable(garment.category)) {
-    const started = await startTryOn(person, garment, garment.category, false);
+    const started = await startTryOn(user.id, person, garment, garment.category, false);
     tryonId = started.tryonId;
   }
 

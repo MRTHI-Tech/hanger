@@ -131,12 +131,22 @@ and must not be a prerequisite for anything working.
 ```
 hanger/
 ├── AGENTS.md                 ← this file
+├── PWA.md                    ← the phone app: what it is and its build order
 ├── README.md                 ← setup, run, demo script (write this, judges read it)
 ├── .env.example
+├── shared/                   one copy of everything more than one app needs
+│   ├── src/types.ts          the wire contract — server, panel and phone
+│   ├── src/api.ts            typed client for the backend (settable base URL)
+│   ├── src/format.ts         prices, for anything that shows one
+│   ├── src/theme/            the butter theme (§3.1)
+│   └── scripts/icon.mjs      the hanger glyph, rasterised to PNG
 ├── server/
 │   ├── package.json          Node 20+, ESM, Hono, better-sqlite3, zod
 │   ├── src/
-│   │   ├── index.ts          Hono app, CORS for chrome-extension://*
+│   │   ├── index.ts          Hono app, CORS for chrome-extension://* and the LAN
+│   │   ├── auth.ts           one seam: whose wardrobe is this request?
+│   │   ├── users.ts          the user table; every row of clothing has an owner
+│   │   ├── pairing.ts        pairing codes (memory) and device tokens (SQLite)
 │   │   ├── env.ts            zod-validated env
 │   │   ├── db.ts             better-sqlite3, migrations run on boot
 │   │   ├── storage.ts        local disk ./storage/, served at /media/:id
@@ -149,52 +159,66 @@ hanger/
 │   │   ├── cache.ts          content-hash cache (§12.2)
 │   │   ├── budget.ts         unit spend guard (§12.3)
 │   │   ├── mock.ts           MOCK_MODE fixtures (§12.1)
-│   │   └── routes/           person, garments, tryon, outfits, alternatives
+│   │   └── routes/           person, garments, tryon, outfits, alternatives, pairing
 │   ├── fixtures/             sample images for MOCK_MODE
 │   └── storage/              gitignored; generated results
-└── extension/
-    ├── package.json          Vite + React 18 + TypeScript + Tailwind
-    ├── manifest.json         MV3
-    ├── src/
-    │   ├── content/
-    │   │   ├── index.ts      PDP detection, floating badge injection
-    │   │   ├── scrape.ts     product data + image extraction (§9)
-    │   │   └── fetchImage.ts same-origin blob fetch (§2.2)
-    │   ├── background/
-    │   │   └── index.ts      service worker, side panel open, task polling relay
-    │   ├── sidepanel/
-    │   │   ├── App.tsx       router
-    │   │   ├── screens/      Onboarding, TryOn, Wardrobe, OutfitBuilder, Alternatives
-    │   │   ├── components/   GarmentCard, OutfitSlot, ImageStrip, BeforeAfter, Spinner
-    │   │   └── api.ts        typed client for the backend
-    │   └── shared/types.ts   shared with server — keep in sync
-    └── public/icons/
+├── extension/
+│   ├── package.json          Vite + React 18 + TypeScript + Tailwind
+│   ├── manifest.json         MV3
+│   ├── src/
+│   │   ├── content/
+│   │   │   ├── index.ts      PDP detection, floating badge injection
+│   │   │   ├── scrape.ts     product data + image extraction (§9)
+│   │   │   └── fetchImage.ts same-origin blob fetch (§2.2)
+│   │   ├── background/
+│   │   │   └── index.ts      service worker, side panel open, task polling relay
+│   │   └── sidepanel/
+│   │       ├── App.tsx       router
+│   │       ├── screens/      Onboarding, TryOn, Wardrobe, OutfitBuilder, Alternatives
+│   │       └── components/   GarmentCard, OutfitSlot, ImageStrip, BeforeAfter, Spinner
+│   └── public/icons/
+└── pwa/                      the phone app (PWA.md) — read-only as of Phase 2
+    ├── index.html            web manifest, theme colour, safe-area viewport
+    ├── public/               manifest and service worker; icons and fonts generated
+    ├── scripts/make-assets.mjs
+    └── src/
+        ├── App.tsx           header, one scrolling region, bottom tab bar
+        ├── server.ts         works out where the server is (PWA.md)
+        ├── device.ts         this phone's pairing token
+        ├── screens/          Hanger, Outfits, OutfitDetail, Me, AddSheet, Pair
+        └── components/       GarmentCard, Sheet, TabBar, FilterChip, ErrorNote, Later
 ```
 
 ### 3.1 Design system — do this before building any UI
 
-The side panel uses the **butter** theme from Astryx. Run this **inside `extension/`**,
-immediately after scaffolding Vite + Tailwind and **before** writing any screen:
+Every UI in this repo uses the **butter** theme from Astryx. It was installed with:
 
 ```bash
-cd extension
 npx @astryxdesign/cli theme add butter
 ```
 
+and now lives at `shared/src/theme/`, imported as `@hanger/shared/theme`. One copy: the
+side panel and the phone wear the same theme, and a change to it changes both. **Do not
+run the CLI again** in a new package — import the shared one.
+
 Then:
 
-- Read whatever the CLI writes (tokens, CSS variables, Tailwind config extensions,
-  component primitives) and **build every screen from those tokens**. Do not hand-roll
-  colours, radii, spacing or type scales alongside it.
-- If the CLI installs component primitives, use them rather than writing new equivalents.
-- Do not run this in the repo root or in `server/` — the theme belongs to the extension
-  package only.
-- If the command fails or the package can't be resolved, **stop and report it** rather
-  than substituting your own design system. The theme is a fixed requirement.
+- **Build every screen from those tokens** (CSS variables, Tailwind extensions,
+  component primitives). Do not hand-roll colours, radii, spacing or type scales
+  alongside them.
+- Use the Astryx component primitives rather than writing new equivalents. Where one
+  genuinely doesn't exist — a chip, a bottom tab bar — build it from tokens, and only
+  from tokens.
+- If the theme can't be resolved, **stop and report it** rather than substituting your
+  own design system. The theme is a fixed requirement.
 
-Layout constraints the theme has to live inside: the Chrome side panel is roughly
-**320–480px wide** and full viewport height. Design single-column, touch-sized targets,
-no horizontal scrolling, and assume the user's own photo is the largest element on screen.
+Layout constraints the theme has to live inside differ by app, and neither one's layout
+is the other's:
+
+- **Side panel:** roughly **320–480px wide**, full viewport height, on a desktop. Single
+  column, no horizontal scrolling, and the user's own photo is the largest element.
+- **Phone:** a whole device. Safe-area insets, a thumb-reachable bottom bar, one-handed
+  use as the default posture, and touch targets no smaller than 44pt.
 
 ---
 

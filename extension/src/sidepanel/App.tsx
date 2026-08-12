@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useState} from 'react';
+import {Smartphone} from 'lucide-react';
 import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
@@ -7,14 +8,14 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {Card} from '@astryxdesign/core/Card';
 import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
-import {api, mediaUrl} from './api';
+import {api, mediaUrl} from '@hanger/shared/api';
 import type {
   Garment,
   Health,
   Outfit,
   Person,
   ScrapedProduct,
-} from '../shared/types';
+} from '@hanger/shared/types';
 import {Onboarding} from './screens/Onboarding';
 import {TryOn} from './screens/TryOn';
 import {Hanger} from './screens/Hanger';
@@ -23,6 +24,9 @@ import {Outfits} from './screens/Outfits';
 import {Alternatives} from './screens/Alternatives';
 import {AddOwned} from './screens/AddOwned';
 import {ErrorNote} from './components/ErrorNote';
+import {PairPhone} from './components/PairPhone';
+import {Sheet} from './components/Sheet';
+import {SignOutAction} from './auth';
 import {onProductReady, takePendingProduct} from './bridge';
 
 type Tab = 'tryon' | 'hanger' | 'outfits';
@@ -40,6 +44,7 @@ export function App() {
   const [openOutfit, setOpenOutfit] = useState<Outfit | null>(null);
   const [alternativesFor, setAlternativesFor] = useState<Garment | null>(null);
   const [addingOwned, setAddingOwned] = useState(false);
+  const [pairingPhone, setPairingPhone] = useState(false);
   // Bumped whenever something is hung or an outfit finishes, so the list
   // screens reload without holding their own subscriptions.
   const [dataVersion, setDataVersion] = useState(0);
@@ -136,6 +141,7 @@ export function App() {
       health={health}
       person={person}
       onChangePhoto={() => setChangingPhoto(true)}
+      onPairPhone={() => setPairingPhone(true)}
       nav={<Nav tab={tab} onChange={setTab} />}>
       {addingOwned ? (
         <AddOwned
@@ -180,10 +186,6 @@ export function App() {
         <Hanger
           refreshKey={dataVersion}
           onAddOwned={() => setAddingOwned(true)}
-          onBuildOutfit={() => {
-            setBuilding(true);
-            setTab('outfits');
-          }}
           onTryOn={(garment: Garment) => {
             // Re-trying something already hung goes through the same screen,
             // with the garment's own photo as the only candidate.
@@ -230,6 +232,19 @@ export function App() {
         ))}
         </>
       )}
+
+      {/* Rides above whatever screen you're on: pairing a phone is a thing you
+          do once, from wherever you happen to be. */}
+      <Sheet
+        title="Pair your phone"
+        isOpen={pairingPhone}
+        onClose={() => setPairingPhone(false)}>
+        {/* Mounted only while open. A dialog keeps its children rendered when
+            it's shut, and this one's first act is to ask the server for a
+            code — so leaving it mounted would put a live pairing code on the
+            wire every time the panel loaded, without anyone asking for one. */}
+        {pairingPhone && <PairPhone onClose={() => setPairingPhone(false)} />}
+      </Sheet>
     </Shell>
   );
 }
@@ -268,12 +283,14 @@ function Shell({
   health,
   person,
   onChangePhoto,
+  onPairPhone,
   nav,
 }: {
   children: React.ReactNode;
   health: Health | null;
   person?: Person | null;
   onChangePhoto?: () => void;
+  onPairPhone?: () => void;
   nav?: React.ReactNode;
 }) {
   return (
@@ -290,6 +307,23 @@ function Shell({
         </Heading>
         <HStack gap={2} vAlign="center">
           {health?.mockMode && <Badge variant="neutral" label="Sample data" />}
+          {onPairPhone && (
+            <button
+              type="button"
+              onClick={onPairPhone}
+              title="Pair your phone"
+              aria-label="Pair your phone"
+              className="flex h-8 w-8 items-center justify-center rounded-full"
+              style={{
+                border: '1px solid var(--color-border-emphasized)',
+                backgroundColor: 'transparent',
+                color: 'var(--color-text-primary)',
+                cursor: 'pointer',
+                padding: 0,
+              }}>
+              <Smartphone size={16} aria-hidden />
+            </button>
+          )}
           {person && onChangePhoto && (
             <button
               type="button"
@@ -311,6 +345,7 @@ function Shell({
               />
             </button>
           )}
+          <SignOutAction />
         </HStack>
       </HStack>
 

@@ -2,6 +2,7 @@ import {createHash, randomUUID} from 'node:crypto';
 import {mkdirSync, readFileSync, writeFileSync, existsSync, unlinkSync} from 'node:fs';
 import {resolve, extname, basename} from 'node:path';
 import {env} from './env.js';
+import {signedMediaPath} from './media.js';
 
 const root = resolve(process.cwd(), env.STORAGE_PATH);
 mkdirSync(root, {recursive: true});
@@ -36,8 +37,16 @@ export function remove(name: string): void {
   }
 }
 
+/**
+ * The URL a client is handed for a stored file — signed, and expiring.
+ *
+ * Every caller already had to decide the person was allowed to see this; the
+ * signature is how that decision travels to a request that can't carry a token
+ * (media.ts). Signing here rather than at each call site means no route can
+ * forget: there is one function that turns a stored filename into a link.
+ */
 export function mediaUrl(name: string): string {
-  return `/media/${name}`;
+  return signedMediaPath(name);
 }
 
 export function hashBytes(bytes: Buffer): string {

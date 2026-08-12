@@ -2,9 +2,9 @@ import {useState} from 'react';
 import {HStack} from '@astryxdesign/core/HStack';
 import {VStack} from '@astryxdesign/core/VStack';
 import {Text} from '@astryxdesign/core/Text';
-import {mediaUrl} from '../api';
-import {formatPrice} from '../format';
-import {SLOT_LABELS, type Garment, type OutfitSlot as Slot} from '../../shared/types';
+import {mediaUrl} from '@hanger/shared/api';
+import {formatPrice} from '@hanger/shared/format';
+import {SLOT_LABELS, type Garment, type OutfitSlot as Slot} from '@hanger/shared/types';
 
 /**
  * One row of the outfit canvas. Accepts a drop from the wardrobe grid, and

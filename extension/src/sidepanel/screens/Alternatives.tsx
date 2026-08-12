@@ -9,16 +9,16 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
-import {api, HangerError, mediaUrl} from '../api';
+import {api, HangerError, mediaUrl} from '@hanger/shared/api';
 import {BeforeAfter} from '../components/BeforeAfter';
 import {ErrorNote} from '../components/ErrorNote';
-import {formatAmount, formatPrice} from '../format';
+import {formatAmount, formatPrice} from '@hanger/shared/format';
 import type {
   Alternative,
   AlternativesResponse,
   Garment,
   Person,
-} from '../../shared/types';
+} from '@hanger/shared/types';
 
 /**
  * The same garment, cheaper elsewhere — and every result is something you can
