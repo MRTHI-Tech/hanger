@@ -301,33 +301,53 @@ header action that signs out only its current session. A signed-out panel
 returns to sign-in; a new account with no person photo continues into the
 existing onboarding flow.
 
-**The panel does not sign anybody in, and the first attempt to make it do so was
-wrong.** MV3 forbids remote code, which is exactly what Clerk's sign-up CAPTCHA
-and the OAuth provider buttons need. What that produced was a form with Google
-hidden behind `display: none`, sign-up punted to a hosted tab, and a migration
-that cleared Clerk's cached client out of `chrome.storage` to get past a stale
-credential — four workarounds stacked on the observation that the panel is the
-wrong place for this.
+**The panel does not sign anybody in. It pairs, the way a phone does.** Getting
+there took two wrong turns worth recording, because both look reasonable until
+you build them.
 
-So the phone app owns all of it. It is an ordinary web origin, where OAuth and
-CAPTCHA are ordinary, and the panel borrows the session it made: Clerk's
-`syncHost` reads it across. Signing in from the panel is a button that opens a
-tab. Every workaround above is deleted, and the account that comes back can be a
-Google one, which was the point.
+The first was signing in *inside* the panel. MV3 forbids remote code, which is
+exactly what Clerk's sign-up CAPTCHA and the OAuth provider buttons need. That
+produced a form with Google hidden behind `display: none`, sign-up punted to a
+hosted tab, and a migration clearing Clerk's cached client out of
+`chrome.storage` — four workarounds stacked on the fact that the panel is the
+wrong place for this. Hiding the provider you wanted is most of the way to
+admitting it.
 
-Two things carry this and neither announces itself when missing:
+The second was Clerk's own answer, `syncHost`: the phone app signs you in and
+the panel reads the session across. It works, and it drags a tail behind it —
+the app has to be *running* for the panel to open at all, an extension id has to
+be registered with Clerk in advance, cookies have to cross origins, and Clerk
+lists the feature as requiring a paid plan in production. Four things to be
+right about, three of which fail silently, for a panel that still can't notice a
+sign-in without being closed and reopened.
 
-- **`key` in the manifest**, so the extension keeps one id across reloads.
-  Without it Chrome mints a new id on every reload of an unpacked extension and
-  Clerk refuses each one in turn, which reads as "sync is broken" rather than as
-  a configuration problem. `extension/key.pem` is the private half and is not in
-  git. **The Web Store assigns its own id on first upload**, so publishing means
-  taking the store's key and putting it here — otherwise the published extension
-  has an id Clerk has never been told about.
-- **`PWA_ORIGIN`**, the same value the pairing QR already needed. Unset in
-  development the extension build assumes the phone app's dev server on this
-  machine. A build with a Clerk key and no origin has nowhere to sign in, and
-  says so on screen rather than failing at the first request.
+So the panel does what a phone does: it repeats six characters only somebody
+looking at the signed-in app could know, and keeps the token it gets. The server
+needed **no change at all** — `attachUser` has resolved device tokens to their
+owner since Phase 3, and `requireLocal` already refuses code-minting to anything
+holding one, so a paired panel can't quietly let in a second device.
+
+What that buys, against `syncHost`:
+
+- Nothing has to be running except the server the panel already talks to.
+- No Clerk configuration, no allowed origins, no Native API toggle, no bot
+  protection to disable, no plan requirement.
+- The panel notices revocation on its next call, like every other device.
+- Clerk stays exactly where it works properly — the phone and the web app.
+
+The manifest keeps its `key`, for a different reason than before: `chrome.storage`
+is scoped to the extension id, so an id that rotates on reload loses the device
+token every time. `extension/key.pem` is the private half and is not in git, and
+the Web Store assigns its own id on first upload.
+
+`PWA_ORIGIN` survives too, demoted: the panel only ever *displays* it, as "the
+app is over here". A wrong value costs a confusing hint rather than a broken
+panel.
+
+**`TRUST_LOOPBACK` should now be off.** It existed for the window where the
+panel had keys and no way to use them. Left on, the panel is waved through on
+loopback and never pairs — which means the pairing being shipped is never
+exercised in development.
 
 ### What changes in the database
 

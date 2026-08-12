@@ -26,7 +26,7 @@ import {AddOwned} from './screens/AddOwned';
 import {ErrorNote} from './components/ErrorNote';
 import {PairPhone} from './components/PairPhone';
 import {Sheet} from './components/Sheet';
-import {SignOutAction} from './auth';
+import {CanPairPhones, SignOutAction} from './auth';
 import {onProductReady, takePendingProduct} from './bridge';
 
 type Tab = 'tryon' | 'hanger' | 'outfits';
@@ -308,21 +308,23 @@ function Shell({
         <HStack gap={2} vAlign="center">
           {health?.mockMode && <Badge variant="neutral" label="Sample data" />}
           {onPairPhone && (
-            <button
-              type="button"
-              onClick={onPairPhone}
-              title="Pair your phone"
-              aria-label="Pair your phone"
-              className="flex h-8 w-8 items-center justify-center rounded-full"
-              style={{
-                border: '1px solid var(--color-border-emphasized)',
-                backgroundColor: 'transparent',
-                color: 'var(--color-text-primary)',
-                cursor: 'pointer',
-                padding: 0,
-              }}>
-              <Smartphone size={16} aria-hidden />
-            </button>
+            <CanPairPhones>
+              <button
+                type="button"
+                onClick={onPairPhone}
+                title="Pair your phone"
+                aria-label="Pair your phone"
+                className="flex h-8 w-8 items-center justify-center rounded-full"
+                style={{
+                  border: '1px solid var(--color-border-emphasized)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-text-primary)',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}>
+                <Smartphone size={16} aria-hidden />
+              </button>
+            </CanPairPhones>
           )}
           {person && onChangePhoto && (
             <button

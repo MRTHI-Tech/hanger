@@ -22,26 +22,21 @@ const watching = process.argv.includes('--watch');
  * (vite.content.config.ts) because content scripts cannot be modules.
  */
 export default defineConfig(({mode}) => {
-  // The backend already owns the local .env file. The Clerk publishable key is
-  // safe to bundle, and reading it here avoids asking for the same value in a
-  // second extension-specific file.
+  // The backend already owns the local .env file, so the one value the panel
+  // needs is read from there rather than asked for again in a second
+  // extension-specific file.
   const env = loadEnv(mode, resolve(here, '../server'), '');
-  const clerkPublishableKey =
-    env.VITE_CLERK_PUBLISHABLE_KEY || env.CLERK_PUBLISHABLE_KEY || '';
 
-  // Where the panel borrows its session from (sidepanel/auth.ts). The same
-  // origin the server already knows as PWA_ORIGIN for the pairing QR code —
-  // one value, because there is only one phone app. In development that is the
-  // phone app's dev server, which is on this machine.
+  // Where to tell somebody to go for a pairing code (sidepanel/auth.tsx). Only
+  // ever displayed — the panel talks to the server, never to the phone app —
+  // so a wrong value costs a confusing hint rather than a broken panel. In
+  // development the app is on this machine at its dev port.
   const pwaOrigin =
     env.PWA_ORIGIN || (mode === 'development' ? 'http://localhost:5174' : '');
 
   return {
     plugins: [react(), tailwind()],
     define: {
-      'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(
-        clerkPublishableKey,
-      ),
       'import.meta.env.VITE_PWA_ORIGIN': JSON.stringify(pwaOrigin),
     },
     build: {

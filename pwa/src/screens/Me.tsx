@@ -7,7 +7,13 @@ import {Button} from '@astryxdesign/core/Button';
 import {Badge} from '@astryxdesign/core/Badge';
 import {Card} from '@astryxdesign/core/Card';
 import {TextInput} from '@astryxdesign/core/TextInput';
-import {api, mediaUrl, type Allowance, type Device} from '@hanger/shared/api';
+import {
+  api,
+  mediaUrl,
+  type Allowance,
+  type Device,
+  type PairingCode,
+} from '@hanger/shared/api';
 import type {Health, Person} from '@hanger/shared/types';
 import {ErrorNote} from '../components/ErrorNote';
 import {SignOutCard} from '../auth';
@@ -117,22 +123,11 @@ function PairingCard({
   const [forgetting, setForgetting] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
-  // No device and still here means this is the laptop looking at its own app.
-  // It never paired and there is nothing to forget.
-  if (!device) {
-    return (
-      <Card padding={3}>
-        <VStack gap={1}>
-          <Text type="label">This computer</Text>
-          <Text type="supporting">
-            You're looking at the phone app on the machine running Hanger, so
-            there's nothing to pair. On an actual phone this is where the
-            pairing lives.
-          </Text>
-        </VStack>
-      </Card>
-    );
-  }
+  // No device means this client is the account holder rather than something
+  // that was let in — signed in, or the laptop looking at its own app. Either
+  // way it is the thing that hands out codes rather than the thing that spends
+  // them, so this is where connecting a browser lives.
+  if (!device) return <ConnectCard />;
 
   async function forget() {
     setForgetting(true);
@@ -176,6 +171,234 @@ function formatDay(at: number): string {
     day: 'numeric',
     month: 'long',
   });
+}
+
+/** How often we ask whether the browser has taken the code yet. */
+const POLL_MS = 1500;
+
+/**
+ * Letting the Chrome side panel into this account.
+ *
+ * The panel can't sign in the way this app does — Chrome forbids the remote
+ * code that OAuth needs inside an extension — so it proves itself the way a
+ * phone does instead, by repeating six characters only somebody looking at this
+ * screen could know. Same codes, same tokens, same five-minute life; the only
+ * thing that changed is which screen shows them.
+ *
+ * Shown only to a client that isn't itself a paired device, because the server
+ * refuses code-minting to anything holding a device token — otherwise a phone
+ * that got in could quietly let in something else.
+ */
+function ConnectCard() {
+  const [pairing, setPairing] = useState<PairingCode | null>(null);
+  const [connected, setConnected] = useState<Device | null>(null);
+  const [expired, setExpired] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [error, setError] = useState<unknown>(null);
+
+  async function loadDevices() {
+    try {
+      setDevices(await api.listDevices());
+    } catch {
+      // Context, not the job. A code that works is worth showing even if we
+      // couldn't say what's already connected.
+    }
+  }
+
+  useEffect(() => {
+    void loadDevices();
+  }, []);
+
+  async function open() {
+    setWorking(true);
+    setError(null);
+    setExpired(false);
+    setConnected(null);
+    try {
+      setPairing(await api.createPairingCode());
+    } catch (e) {
+      setError(e);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!pairing || expired || connected) return;
+
+    const {code} = pairing;
+    let cancelled = false;
+    let timer: number | null = null;
+
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const result = await api.pairingStatus(code);
+        if (cancelled) return;
+        if (result.status === 'paired') {
+          setConnected(result.device);
+          void loadDevices();
+          return;
+        }
+        if (result.status === 'expired') {
+          setExpired(true);
+          return;
+        }
+      } catch (e) {
+        if (!cancelled) setError(e);
+        return;
+      }
+      if (!cancelled) timer = window.setTimeout(poll, POLL_MS);
+    }
+
+    timer = window.setTimeout(poll, POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [pairing, expired, connected]);
+
+  return (
+    <Card padding={3}>
+      <VStack gap={3}>
+        <VStack gap={1}>
+          <Text type="label">Connect a browser</Text>
+          <Text type="supporting">
+            The Hanger side panel in Chrome asks for six characters the first
+            time you open it. This is where they come from.
+          </Text>
+        </VStack>
+
+        {connected ? (
+          <VStack gap={1}>
+            <Text type="label">{connected.name} is in</Text>
+            <Text type="supporting">
+              It can see your hanger now, and stays connected until you remove
+              it below.
+            </Text>
+          </VStack>
+        ) : expired ? (
+          <VStack gap={2}>
+            <Text type="supporting">
+              That code expired. Codes last five minutes, so one left on screen
+              can't be used later.
+            </Text>
+            <Button
+              label="Show a new code"
+              variant="primary"
+              size="sm"
+              onClick={() => void open()}
+            />
+          </VStack>
+        ) : pairing ? (
+          <VStack gap={2} hAlign="center">
+            <Code value={pairing.code} />
+            <Text type="supporting">Waiting for the browser…</Text>
+          </VStack>
+        ) : (
+          <Button
+            label={working ? 'Making a code…' : 'Show me a code'}
+            variant="secondary"
+            size="sm"
+            isDisabled={working}
+            onClick={() => void open()}
+          />
+        )}
+
+        {error != null && (
+          <ErrorNote
+            error={error}
+            title="Couldn't set that up"
+            onDismiss={() => setError(null)}
+          />
+        )}
+
+        <ConnectedList devices={devices} onChanged={loadDevices} />
+      </VStack>
+    </Card>
+  );
+}
+
+/**
+ * Read off a phone at arm's length and typed into a laptop, so it is sized for
+ * the reading rather than the layout.
+ */
+function Code({value}: {value: string}) {
+  return (
+    <div
+      // Read as one word, not six letters, by anything speaking it aloud.
+      aria-label={`Pairing code ${value.split('').join(' ')}`}
+      style={{
+        fontFamily: 'var(--font-family-mono, ui-monospace, monospace)',
+        fontSize: '2rem',
+        letterSpacing: '0.28em',
+        // The tracking sits to the right of the last character too; pull it
+        // back so the code still looks centred.
+        textIndent: '0.28em',
+        fontWeight: 600,
+        color: 'var(--color-text-primary)',
+        padding: '0.75rem 1rem',
+        borderRadius: 'var(--radius-container)',
+        border: '1px solid var(--color-border-emphasized)',
+        backgroundColor: 'var(--color-background-muted)',
+        userSelect: 'all',
+      }}>
+      {value}
+    </div>
+  );
+}
+
+/** What has been let in, and the way back out. */
+function ConnectedList({
+  devices,
+  onChanged,
+}: {
+  devices: Device[];
+  onChanged: () => void;
+}) {
+  if (devices.length === 0) return null;
+
+  return (
+    <VStack gap={2}>
+      <Text type="label">Connected</Text>
+      {devices.map((device) => (
+        <HStack key={device.id} gap={2} vAlign="center" justify="between">
+          <VStack gap={0.5}>
+            <Text type="supporting" color="primary" maxLines={1}>
+              {device.name}
+            </Text>
+            <Text type="supporting">{lastSeen(device)}</Text>
+          </VStack>
+          <div className="shrink-0">
+            <Button
+              label="Remove"
+              aria-label={`Remove ${device.name}`}
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await api.removeDevice(device.id);
+                onChanged();
+              }}
+            />
+          </div>
+        </HStack>
+      ))}
+    </VStack>
+  );
+}
+
+/**
+ * Which of these is the thing in front of you and which is the one you stopped
+ * using. Exact times are no help for that; "yesterday" is.
+ */
+function lastSeen(device: Device): string {
+  if (device.lastSeenAt == null) return 'Not used yet';
+  const days = Math.floor((Date.now() - device.lastSeenAt) / 86_400_000);
+  if (days === 0) return 'Used today';
+  if (days === 1) return 'Used yesterday';
+  if (days < 30) return `Used ${days} days ago`;
+  return `Last used ${new Date(device.lastSeenAt).toLocaleDateString()}`;
 }
 
 /**

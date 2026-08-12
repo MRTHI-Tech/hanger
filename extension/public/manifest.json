@@ -20,7 +20,7 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["sidePanel", "storage", "cookies", "tabs", "scripting"],
+  "permissions": ["sidePanel", "storage", "tabs", "scripting"],
   "host_permissions": ["http://localhost:8787/*", "<all_urls>"],
   "content_scripts": [
     {

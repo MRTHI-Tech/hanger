@@ -1,9 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Public Clerk key injected from server/.env by the extension Vite build. */
-  readonly VITE_CLERK_PUBLISHABLE_KEY?: string;
-  /** The phone app's origin, which is where the panel's session comes from. */
+  /** Where to send somebody for a pairing code. Displayed, never called. */
   readonly VITE_PWA_ORIGIN?: string;
 }
 
