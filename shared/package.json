@@ -9,10 +9,12 @@
     "./api": "./src/api.ts",
     "./format": "./src/format.ts",
     "./theme": "./src/theme/butterTheme.ts",
+    "./illustrations": "./src/illustrations/pose.tsx",
     "./scripts/icon.mjs": "./scripts/icon.mjs"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:illustrations": "node scripts/build-illustrations.mjs"
   },
   "dependencies": {
     "@astryxdesign/core": "^0.2.0",
