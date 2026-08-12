@@ -16,3 +16,6 @@ dist-harness/
 # Generated before every phone build (scripts/make-assets.mjs)
 pwa/public/icons/
 pwa/public/fonts/
+
+# Extension signing key: pins the extension id so Clerk can allow it.
+extension/key.pem

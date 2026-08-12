@@ -19,12 +19,20 @@ export default defineConfig(({mode}) => {
   const clerkPublishableKey =
     env.VITE_CLERK_PUBLISHABLE_KEY || env.CLERK_PUBLISHABLE_KEY || '';
 
+  // Where the panel borrows its session from (sidepanel/auth.ts). The same
+  // origin the server already knows as PWA_ORIGIN for the pairing QR code —
+  // one value, because there is only one phone app. In development that is the
+  // phone app's dev server, which is on this machine.
+  const pwaOrigin =
+    env.PWA_ORIGIN || (mode === 'development' ? 'http://localhost:5174' : '');
+
   return {
     plugins: [react(), tailwind()],
     define: {
       'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(
         clerkPublishableKey,
       ),
+      'import.meta.env.VITE_PWA_ORIGIN': JSON.stringify(pwaOrigin),
     },
     build: {
       outDir: 'dist',

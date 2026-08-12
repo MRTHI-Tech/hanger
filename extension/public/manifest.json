@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtPSDeKiLEL8BJxHEB8GJBxjf8v74itWpuQG4wKx9nqYWNPM4m6JUNg0eHDVM5SFLboj5stf9LuPdsdPwKTt+DdHKeZ3L985f9QBe9NbA5CTM1oZHJJIa6MUA1lYFM41Ex4j8hJzb1kwqrdcuWsoYenowK1kxoj3iA20RbKAkf96vxEfSazLg34uMY9TWJ3Ar7mPAM7qjq50GKP6ezhuh7dcUhe1DbE8MRAI8lPR5DTku5dqdBzqGGlEJG+jiGHZl39G77JTJ41iGsxoOSpCI1bs4nSwilRWJpI2HT2c4atr5KwtvHsChRXxdPg3aEpPQdPBi94LxddH6ujR9bKVtywIDAQAB",
   "name": "Hanger",
   "version": "0.1.0",
   "description": "Try on any garment from any shop, keep it in Your Hanger, and build outfits across retailers.",

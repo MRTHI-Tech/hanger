@@ -296,10 +296,38 @@ Verified: loopback trusted → 200; off-machine with nothing → `not_signed_in`
 a forged session token → refused; and a loopback request carrying
 `X-Forwarded-For` → refused, which is the case that would have leaked.
 
-The side panel uses Clerk's Chrome-extension SDK, passes fresh session tokens to
-the shared API client, and has a header action that signs out only its current
-session. A signed-out panel returns to sign-in; a new account with no person
-photo continues into the existing onboarding flow.
+The side panel passes fresh session tokens to the shared API client and has a
+header action that signs out only its current session. A signed-out panel
+returns to sign-in; a new account with no person photo continues into the
+existing onboarding flow.
+
+**The panel does not sign anybody in, and the first attempt to make it do so was
+wrong.** MV3 forbids remote code, which is exactly what Clerk's sign-up CAPTCHA
+and the OAuth provider buttons need. What that produced was a form with Google
+hidden behind `display: none`, sign-up punted to a hosted tab, and a migration
+that cleared Clerk's cached client out of `chrome.storage` to get past a stale
+credential — four workarounds stacked on the observation that the panel is the
+wrong place for this.
+
+So the phone app owns all of it. It is an ordinary web origin, where OAuth and
+CAPTCHA are ordinary, and the panel borrows the session it made: Clerk's
+`syncHost` reads it across. Signing in from the panel is a button that opens a
+tab. Every workaround above is deleted, and the account that comes back can be a
+Google one, which was the point.
+
+Two things carry this and neither announces itself when missing:
+
+- **`key` in the manifest**, so the extension keeps one id across reloads.
+  Without it Chrome mints a new id on every reload of an unpacked extension and
+  Clerk refuses each one in turn, which reads as "sync is broken" rather than as
+  a configuration problem. `extension/key.pem` is the private half and is not in
+  git. **The Web Store assigns its own id on first upload**, so publishing means
+  taking the store's key and putting it here — otherwise the published extension
+  has an id Clerk has never been told about.
+- **`PWA_ORIGIN`**, the same value the pairing QR already needed. Unset in
+  development the extension build assumes the phone app's dev server on this
+  machine. A build with a Clerk key and no origin has nowhere to sign in, and
+  says so on screen rather than failing at the first request.
 
 ### What changes in the database
 
