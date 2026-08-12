@@ -81,6 +81,36 @@ function fixture(): Record<string, unknown> {
   return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
 }
 
+/**
+ * Per attempt, not per search.
+ *
+ * SerpApi answers in two or three seconds when it is well, so fifteen is
+ * already several times the normal wait — and past that, waiting longer is a
+ * worse bet than asking again. The one failure this has actually had in the
+ * wild was a single request hanging past the ceiling while the identical query
+ * came back in under three seconds moments later.
+ */
+const REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * How many alternatives a search is worth.
+ *
+ * A shopping search can hand back forty rows, and the fortieth is not a
+ * fortieth as good — `filterMatches` has already sorted them cheapest-first in
+ * the garment's own currency, so the answer to "is this cheaper somewhere
+ * else" is at the top and everything after it is scrolling. Capped here rather
+ * than at the route so the cache holds five too, and one search doesn't store
+ * thirty-five rows nobody will read.
+ */
+export const MAX_ALTERNATIVES = 5;
+
+/** Two attempts, so worst case is ~30s rather than the ~40s a 20s ceiling gave. */
+const ATTEMPTS = 2;
+
+const RETRY_DELAY_MS = 500;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function callSerpApi(params: Record<string, string>): Promise<Record<string, unknown>> {
   if (mockMode) return fixture();
 
@@ -90,22 +120,49 @@ async function callSerpApi(params: Record<string, string>): Promise<Record<strin
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   url.searchParams.set('api_key', env.SERPAPI_KEY);
 
-  let response: Response;
-  try {
-    response = await fetch(url, {signal: AbortSignal.timeout(20_000)});
-  } catch (error) {
-    console.error('[hanger] SerpApi request failed:', error);
-    throw new CodedError('serpapi_unavailable');
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    const last = attempt === ATTEMPTS;
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      // A timeout or a dropped connection. Both are worth asking again about,
+      // because neither says anything about whether the query is answerable.
+      console.error(
+        `[hanger] SerpApi request failed (attempt ${attempt}/${ATTEMPTS}):`,
+        error,
+      );
+      if (last) throw new CodedError('serpapi_unavailable');
+      await delay(RETRY_DELAY_MS);
+      continue;
+    }
+
+    // Retried, because it is their end having a moment. A 4xx is not: a bad
+    // key or a spent allowance answers the same way however many times it is
+    // asked, and retrying it just doubles the wait before the same refusal.
+    if (response.status >= 500 && !last) {
+      console.error(
+        `[hanger] SerpApi ${response.status} (attempt ${attempt}/${ATTEMPTS}), retrying`,
+      );
+      await delay(RETRY_DELAY_MS);
+      continue;
+    }
+
+    if (!response.ok) {
+      console.error(`[hanger] SerpApi ${response.status}: ${await response.text()}`);
+      throw new CodedError('serpapi_unavailable');
+    }
+
+    const body = (await response.json()) as Record<string, unknown>;
+    logShapeOnce(body);
+    return body;
   }
 
-  if (!response.ok) {
-    console.error(`[hanger] SerpApi ${response.status}: ${await response.text()}`);
-    throw new CodedError('serpapi_unavailable');
-  }
-
-  const body = (await response.json()) as Record<string, unknown>;
-  logShapeOnce(body);
-  return body;
+  // Unreachable: the last attempt either returns or throws above.
+  throw new CodedError('serpapi_unavailable');
 }
 
 /**
@@ -411,7 +468,9 @@ export async function lookupAlternatives(
       garment.retailer,
       market.currency,
     );
-    if (matches.length > 0) return {matches, usedTextFallback: false};
+    if (matches.length > 0) {
+      return {matches: matches.slice(0, MAX_ALTERNATIVES), usedTextFallback: false};
+    }
     console.log('[hanger] Lens gave nothing usable; falling back to a text search');
   }
 
@@ -425,7 +484,10 @@ export async function lookupAlternatives(
   // Shopping results carry the same fields under a different key.
   const shopping = (body.shopping_results ?? body.visual_matches ?? []) as LensMatch[];
   return {
-    matches: filterMatches(shopping, garment.retailer, market.currency),
+    matches: filterMatches(shopping, garment.retailer, market.currency).slice(
+      0,
+      MAX_ALTERNATIVES,
+    ),
     usedTextFallback: true,
   };
 }

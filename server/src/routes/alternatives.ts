@@ -5,6 +5,7 @@ import {
   cachedAlternatives,
   getAlternativeRow,
   lookupAlternatives,
+  MAX_ALTERNATIVES,
   storeAlternatives,
   type AlternativeRow,
 } from '../alternatives.js';
@@ -76,7 +77,12 @@ alternativeRoutes.get('/', async (c) => {
     if (cached.length > 0) {
       console.log(`CACHE HIT alternatives ${garmentId.slice(0, 8)} (saved 1 search)`);
       return c.json({
-        items: cached.map((row) => alternativeJson(row, price)),
+        // Trimmed on the way out as well as on the way in, because rows cached
+        // before there was a cap are still sitting in the database and would
+        // otherwise keep answering with all forty of themselves.
+        items: cached
+          .slice(0, MAX_ALTERNATIVES)
+          .map((row) => alternativeJson(row, price)),
         original: {garmentId, price},
         fromCache: true,
         usedTextFallback: false,
