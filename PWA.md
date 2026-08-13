@@ -518,14 +518,49 @@ Done when: an outfit built entirely on the phone, video and all.
 
 ---
 
-## Phase 7 — Share out
+## Phase 7 — Share out — **done**
 
 The phone's native share sheet, for both the outfit image and the mp4. WhatsApp,
 Instagram, Messages, anything installed.
 
-Genuinely easier here than on desktop — the platform does the work.
+Genuinely easier here than on desktop — the platform does the work. What the platform
+will not forgive is three things, and they are the whole shape of `share.ts`.
 
-Done when: an outfit video reaches a WhatsApp thread in two taps.
+**The sheet has to open inside the tap that asked for it.** A share is granted on the
+user's gesture, and on iOS an `await fetch()` in the handler spends that grant before
+`navigator.share` is reached — no sheet, no error anybody can act on, just a button that
+does nothing. So the file is fetched when the screen mounts and the tap only opens the
+sheet. That reads expensive and isn't: the same URL is already loaded into the `<video>`
+or `<img>` above it, and media is served `immutable` with a year on it, so the fetch is
+the cache answering. It also makes the tap instant, which is the two-tap claim.
+
+**Send the file, not a link.** Tempting, and wrong twice over: media URLs are signed and
+short-lived after Phase 4, so a link would expire inside somebody's chat history, and in
+development they are LAN addresses that mean nothing on the other end. The bytes are what
+travels.
+
+**A caption costs you the attachment.** WhatsApp — the target this phase is measured on —
+reads a share carrying `text` as a *text* share and quietly drops the file. So the share
+carries the file and a title and no text. A caption is worth less than the video arriving.
+
+One button, and it sends whatever is on the screen: the video when the outfit has one, the
+still when it doesn't. A picker between two files you cannot see at the moment of tapping
+would be a question nobody asked. Mock mode's "video" is an animated SVG, so the label
+follows the file rather than the mode — it offers to send a picture, and it is right to.
+
+**It is on the try-on result too**, which the plan didn't say and the screen argues for:
+somebody who has just seen themselves in one thing wants to send it to whoever they are
+shopping with, and asking them to keep it, leave, and open it again from Your Hanger is
+asking them to file it before they can talk about it. It sits above the keep-or-not
+buttons and wears the quieter variant, because what that screen is asking is still whether
+to keep the thing.
+
+A browser with no sheet (any desktop one) saves the file instead, and says that is what
+the button does. That path goes through a blob URL because `download` is ignored on a
+cross-origin link, and the app and the API are two origins until Phase 4 puts them on one.
+
+Done when: an outfit video reaches a WhatsApp thread in two taps — the only check in this
+build that a laptop cannot run on your behalf.
 
 **~half a day.**
 
@@ -567,7 +602,7 @@ stopped being the last thing once it turned out everything after it writes data.
 | Real accounts, live on the internet, extension published | + Phase 4, **~9.5 days** |
 | Hang from a shop | + Phase 5, **~10.5 days** ✅ |
 | Try on, build an outfit, make the video | + Phase 6, **~11.5 days** ✅ |
-| Share to WhatsApp | + Phase 7, **~12 days** |
+| Share to WhatsApp | + Phase 7, **~12 days** ✅ |
 | Everything, screenshots included | + Phase 8, **~13.5 days** |
 
 Call it **two and a half weeks** at the pace of the last few days, for something a

@@ -8,6 +8,7 @@ import {Spinner} from '@astryxdesign/core/Spinner';
 import {api, HangerError, mediaUrl} from '@hanger/shared/api';
 import {type Garment, type TryOnResult} from '@hanger/shared/types';
 import {ErrorNote} from '../components/ErrorNote';
+import {ShareCard} from '../components/ShareCard';
 import {usePollWhileVisible} from '../poll';
 
 type Stage = 'starting' | 'running' | 'done' | 'failed';
@@ -153,6 +154,17 @@ export function TryOn({
             onDismiss={() => setError(null)}
           />
         )}
+
+        {/* Above the keep-or-not buttons, and quieter than them. Somebody who
+            has just seen themselves in something often wants to send it before
+            they have decided anything about it — but what the screen is asking
+            is whether to keep it, and that stays the loud question. */}
+        <ShareCard
+          url={resultUrl}
+          name={garment.title}
+          kind="picture"
+          variant="secondary"
+        />
 
         <VStack gap={2}>
           {!hung && (

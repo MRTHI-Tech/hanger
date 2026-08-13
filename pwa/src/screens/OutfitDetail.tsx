@@ -21,7 +21,7 @@ import {
   type Outfit,
   type VideoPose,
 } from '@hanger/shared/types';
-import {Later} from '../components/Later';
+import {ShareCard} from '../components/ShareCard';
 import {ErrorNote} from '../components/ErrorNote';
 import {usePollWhileVisible} from '../poll';
 
@@ -29,9 +29,9 @@ import {usePollWhileVisible} from '../poll';
  * One saved look, full screen.
  *
  * On a phone this is the payoff: the finished outfit big enough to actually
- * look at, the video if one was made on the laptop, and the list of what it
- * would cost to buy. Sharing it is the next phase — the button that belongs
- * here is the phone's own share sheet, and that's Phase 7.
+ * look at, the video if one was made on the laptop, the list of what it would
+ * cost to buy, and — the one thing a laptop can't do — the phone's own share
+ * sheet, sending whichever of the two is on screen straight to a chat.
  */
 export function OutfitDetail({
   outfit: initial,
@@ -67,6 +67,15 @@ export function OutfitDetail({
   const video = outfit.video;
   const hasVideo = video?.status === 'success' && Boolean(video.url);
 
+  // What the screen is showing, and so what "send it" means. The video when
+  // there is one, the still when there isn't, and nothing at all while the
+  // outfit is still being assembled — there is no look to send yet.
+  const shown = hasVideo
+    ? mediaUrl(video.url!)
+    : outfit.resultUrl
+      ? mediaUrl(outfit.resultUrl)
+      : null;
+
   return (
     <VStack padding={4} gap={4}>
       <HStack gap={2} vAlign="center">
@@ -94,9 +103,9 @@ export function OutfitDetail({
         </VStack>
       </HStack>
 
-      {hasVideo ? (
+      {hasVideo && shown ? (
         <VStack gap={1}>
-          <VideoPlayer url={mediaUrl(video.url!)} />
+          <VideoPlayer url={shown} />
           {/* Which motion was picked on the laptop. Only worth a line once the
               choice exists — an older video has no pose recorded. */}
           {video.pose && (
@@ -172,11 +181,17 @@ export function OutfitDetail({
         </VStack>
       </Card>
 
+      {shown && (
+        <ShareCard
+          url={shown}
+          name={outfit.name ?? 'Your outfit'}
+          kind={isVideoUrl(shown) ? 'video' : 'picture'}
+        />
+      )}
+
       {outfit.status === 'success' && outfit.resultUrl && (
         <VideoCard outfit={outfit} onChange={setOutfit} />
       )}
-
-      <Later phase="Phase 7">Send this to someone on WhatsApp</Later>
     </VStack>
   );
 }
@@ -340,6 +355,15 @@ function PosePicker({
   );
 }
 
+/**
+ * Whether a URL is something that plays. Follows the file rather than the mode,
+ * because a mock "video" is an animated SVG — which the player has to render as
+ * an image, and which the share sheet has to offer as a picture.
+ */
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|mov)(\?|$)/i.test(url);
+}
+
 function summarise(pieces: number, shops: number): string {
   const p = `${pieces} ${pieces === 1 ? 'piece' : 'pieces'}`;
   if (shops === 0) return `${p} from your own wardrobe, on you`;
@@ -353,7 +377,7 @@ function summarise(pieces: number, shops: number): string {
  * throws the video into its own fullscreen player the moment it starts.
  */
 function VideoPlayer({url}: {url: string}) {
-  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+  const isVideo = isVideoUrl(url);
 
   const frame = {
     width: '100%',

@@ -193,10 +193,16 @@ There is a second app in `pwa/`: the same hanger, on a phone. It talks to the
 same server and the same database, so anything kept from the side panel is
 already there. [PWA.md](PWA.md) is its specification and build order.
 
-It shows Your Hanger, your outfits and their buy lists, and it photographs:
-your own photo, and any piece you own or find on a shop floor — camera or photo
-roll, straight onto the hanger. Trying one on and sharing to WhatsApp are the
-phases after this one, and the app says so where each will go.
+It shows Your Hanger, your outfits and their buy lists. It photographs: your own
+photo, and any piece you own or find on a shop floor — camera or photo roll,
+straight onto the hanger. It tries things on, builds an outfit and makes the
+video. And it sends what you're looking at — the mp4, the outfit still, or you
+in the one thing you just tried on — to WhatsApp, Instagram or Messages through
+the phone's own share sheet, which is the one thing the side panel cannot do at
+all.
+
+Getting a screenshot from another app *in* is the phase after this one, and the
+app says so where it will go.
 
 ```bash
 npm run dev:phone
