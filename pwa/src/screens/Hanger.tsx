@@ -11,13 +11,14 @@ import {formatPrice} from '@hanger/shared/format';
 import {
   CATEGORY_LABELS,
   isOwned,
+  isTryOnable,
   type Garment,
   type GarmentCategory,
+  type TryOnResult,
 } from '@hanger/shared/types';
 import {GarmentCard} from '../components/GarmentCard';
 import {ErrorNote} from '../components/ErrorNote';
 import {Sheet} from '../components/Sheet';
-import {Later} from '../components/Later';
 import {FilterChip} from '../components/FilterChip';
 
 /**
@@ -25,8 +26,20 @@ import {FilterChip} from '../components/FilterChip';
  * photographed off a shop floor. Same content as the panel's, same
  * cross-retailer point.
  */
-export function Hanger({onAdd}: {onAdd: () => void}) {
+export function Hanger({
+  onAdd,
+  onTryOn,
+  hasPhoto,
+  onNeedPhoto,
+}: {
+  onAdd: () => void;
+  onTryOn: (garment: Garment) => void;
+  /** Nothing can be tried on until there's a photo to try it on to. */
+  hasPhoto: boolean;
+  onNeedPhoto: () => void;
+}) {
   const [garments, setGarments] = useState<Garment[] | null>(null);
+  const [tryOns, setTryOns] = useState<TryOnResult[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [filter, setFilter] = useState<GarmentCategory | 'all'>('all');
   const [selected, setSelected] = useState<Garment | null>(null);
@@ -34,7 +47,15 @@ export function Hanger({onAdd}: {onAdd: () => void}) {
   async function load() {
     setError(null);
     try {
-      setGarments(await api.listGarments());
+      // Try-ons alongside the garments, so opening a piece can show you
+      // wearing it. They come back newest first, which is what `wornIn` below
+      // relies on — it takes the first match rather than comparing dates.
+      const [pieces, results] = await Promise.all([
+        api.listGarments(),
+        api.listTryOns().catch(() => [] as TryOnResult[]),
+      ]);
+      setGarments(pieces);
+      setTryOns(results);
     } catch (e) {
       setError(e);
     }
@@ -123,18 +144,68 @@ export function Hanger({onAdd}: {onAdd: () => void}) {
         title={selected?.title ?? 'This piece'}
         isOpen={selected != null}
         onClose={() => setSelected(null)}>
-        {selected && <GarmentDetail garment={selected} />}
+        {selected && (
+          <GarmentDetail
+            garment={selected}
+            worn={wornIn(tryOns, selected.id)}
+            hasPhoto={hasPhoto}
+            onTryOn={() => {
+              const piece = selected;
+              setSelected(null);
+              onTryOn(piece);
+            }}
+            onNeedPhoto={() => {
+              setSelected(null);
+              onNeedPhoto();
+            }}
+          />
+        )}
       </Sheet>
     </VStack>
   );
 }
 
 /**
- * One piece, close up. Opening the shop's page is the only thing the phone can
- * honestly do with it today — everything else needs a try-on, and a try-on
- * spends credits, which is Phase 6.
+ * The most recent time this piece came back on you.
+ *
+ * `GET /tryon` answers newest first, so the first match is the newest one —
+ * no dates compared, and no `createdAt` needed on the wire type.
  */
-function GarmentDetail({garment}: {garment: Garment}) {
+function wornIn(tryOns: TryOnResult[], garmentId: string): TryOnResult | null {
+  return (
+    tryOns.find(
+      (t) => t.garmentId === garmentId && t.status === 'success' && t.resultUrl,
+    ) ?? null
+  );
+}
+
+/**
+ * One piece, close up — and you wearing it, once you have.
+ *
+ * The result of a try-on lives here rather than in a list of its own. A
+ * try-on isn't an event you'd go looking for later; it's a fact about the
+ * garment, and the useful question a week afterwards is "what did that look
+ * like on me", asked of the piece. It also quietly turns Your Hanger from a
+ * grid of product shots into a wardrobe of you in things.
+ *
+ * Running it again is free when nothing has changed — the server caches on the
+ * hash of the two images — so the button stays offered rather than hidden once
+ * a result exists.
+ */
+function GarmentDetail({
+  garment,
+  worn,
+  hasPhoto,
+  onTryOn,
+  onNeedPhoto,
+}: {
+  garment: Garment;
+  worn: TryOnResult | null;
+  hasPhoto: boolean;
+  onTryOn: () => void;
+  onNeedPhoto: () => void;
+}) {
+  const tryable = isTryOnable(garment.category);
   return (
     <VStack gap={3}>
       <HStack gap={3} vAlign="start">
@@ -160,7 +231,42 @@ function GarmentDetail({garment}: {garment: Garment}) {
         </VStack>
       </HStack>
 
+      {worn?.resultUrl && (
+        <VStack gap={1}>
+          <Text type="supporting">On you</Text>
+          <div
+            className="w-full overflow-hidden rounded-xl"
+            style={{
+              backgroundColor: 'var(--color-background-muted)',
+              border: '1px solid var(--color-border)',
+            }}>
+            <img
+              src={mediaUrl(worn.resultUrl)}
+              alt={`You wearing ${garment.title}`}
+              className="block w-full"
+              style={{maxHeight: '38vh', objectFit: 'contain'}}
+            />
+          </div>
+        </VStack>
+      )}
+
       <VStack gap={2}>
+        {tryable &&
+          (hasPhoto ? (
+            <Button
+              label={worn ? 'Try it on again' : 'Try this on'}
+              variant="primary"
+              onClick={onTryOn}
+            />
+          ) : (
+            // Not a disabled button: there is something to do about this, and
+            // the phone can now do it — so say what, and go there.
+            <Button
+              label="Add your photo first"
+              variant="secondary"
+              onClick={onNeedPhoto}
+            />
+          ))}
         {!isOwned(garment) && garment.productUrl && (
           <Button
             label="Open the shop's page"
@@ -168,7 +274,6 @@ function GarmentDetail({garment}: {garment: Garment}) {
             onClick={() => window.open(garment.productUrl!, '_blank')}
           />
         )}
-        <Later phase="Phase 6">Try this on, and build it into an outfit</Later>
       </VStack>
     </VStack>
   );

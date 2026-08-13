@@ -1,3 +1,4 @@
+import {useCallback, useEffect, useState} from 'react';
 import {ChevronLeft} from 'lucide-react';
 import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
@@ -8,15 +9,21 @@ import {Badge} from '@astryxdesign/core/Badge';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Card} from '@astryxdesign/core/Card';
 import {Divider} from '@astryxdesign/core/Divider';
-import {mediaUrl} from '@hanger/shared/api';
+import {Spinner} from '@astryxdesign/core/Spinner';
+import {api, mediaUrl} from '@hanger/shared/api';
 import {formatAmount, formatPrice} from '@hanger/shared/format';
 import {
+  DEFAULT_VIDEO_POSE,
   isOwned,
   SLOT_LABELS,
   videoPoseLabel,
+  VIDEO_POSES,
   type Outfit,
+  type VideoPose,
 } from '@hanger/shared/types';
 import {Later} from '../components/Later';
+import {ErrorNote} from '../components/ErrorNote';
+import {usePollWhileVisible} from '../poll';
 
 /**
  * One saved look, full screen.
@@ -27,12 +34,32 @@ import {Later} from '../components/Later';
  * here is the phone's own share sheet, and that's Phase 7.
  */
 export function OutfitDetail({
-  outfit,
+  outfit: initial,
   onBack,
 }: {
   outfit: Outfit;
   onBack: () => void;
 }) {
+  // Seeded from the list's copy, then owned here: making a video changes this
+  // outfit, and the row on the server is what says how it's going.
+  const [outfit, setOutfit] = useState<Outfit>(initial);
+  useEffect(() => setOutfit(initial), [initial]);
+
+  // Openable while it's still assembling — from the grid, or by coming back to
+  // a phone that was locked through the whole chain.
+  const assembling = outfit.status === 'running' || outfit.status === 'pending';
+  usePollWhileVisible(
+    useCallback(async () => {
+      try {
+        setOutfit(await api.getOutfit(outfit.id));
+      } catch {
+        // Keep showing the last good state; the next tick tries again.
+      }
+    }, [outfit.id]),
+    assembling,
+    3000,
+  );
+
   const worn = outfit.items.filter((item) => !item.skipped);
   const shops = new Set(
     worn.map((i) => i.garment.retailer).filter((r): r is string => r != null),
@@ -145,7 +172,170 @@ export function OutfitDetail({
         </VStack>
       </Card>
 
+      {outfit.status === 'success' && outfit.resultUrl && (
+        <VideoCard outfit={outfit} onChange={setOutfit} />
+      )}
+
       <Later phase="Phase 7">Send this to someone on WhatsApp</Later>
+    </VStack>
+  );
+}
+
+/**
+ * Make the look move.
+ *
+ * Only offered on a finished outfit, because there has to be an image to
+ * animate. The pose picker is here rather than buried behind a default: the
+ * four motions produce genuinely different videos, and the server treats the
+ * same outfit walking as a different render from the same outfit standing
+ * still — so choosing is the difference between one video and two.
+ *
+ * A video costs four units where a try-on costs one, and it takes a couple of
+ * minutes. The wait says so, and says it keeps going without you.
+ */
+function VideoCard({
+  outfit,
+  onChange,
+}: {
+  outfit: Outfit;
+  onChange: (outfit: Outfit) => void;
+}) {
+  const [pose, setPose] = useState<VideoPose>(
+    outfit.video?.pose ?? DEFAULT_VIDEO_POSE,
+  );
+  const [error, setError] = useState<unknown>(null);
+  const video = outfit.video;
+  const running = video?.status === 'running' || video?.status === 'pending';
+  const done = video?.status === 'success' && Boolean(video.url);
+
+  usePollWhileVisible(
+    useCallback(async () => {
+      try {
+        onChange(await api.getOutfit(outfit.id));
+      } catch (e) {
+        setError(e);
+      }
+    }, [outfit.id, onChange]),
+    running,
+    2500,
+  );
+
+  async function make() {
+    setError(null);
+    try {
+      onChange(await api.createOutfitVideo(outfit.id, pose));
+    } catch (e) {
+      setError(e);
+    }
+  }
+
+  // Already playing at the top of the screen — the only thing left to offer is
+  // a different motion, and that's a fresh render rather than a state of this
+  // one, so it reads as its own choice.
+  if (done && video?.pose === pose) {
+    return (
+      <Card padding={3}>
+        <VStack gap={3}>
+          <VStack gap={1}>
+            <Text type="label">Another motion</Text>
+            <Text type="supporting">
+              This one is a {videoPoseLabel(pose)} video. Pick a different motion
+              and we'll render that as well — the first one is kept.
+            </Text>
+          </VStack>
+          <PosePicker pose={pose} onChange={setPose} isDisabled={false} />
+        </VStack>
+      </Card>
+    );
+  }
+
+  return (
+    <Card padding={3}>
+      <VStack gap={3}>
+        <VStack gap={1}>
+          <Text type="label">{done ? 'Make another' : 'Make a video'}</Text>
+          <Text type="supporting">
+            {running
+              ? 'Rendering. This takes a couple of minutes, and carries on if you lock your phone.'
+              : 'Turn this look into a few seconds of video you can send to someone.'}
+          </Text>
+        </VStack>
+
+        {video?.status === 'error' && (
+          <Banner
+            status="warning"
+            title="The video didn't render"
+            description={video.message ?? 'Something went wrong making it.'}
+          />
+        )}
+
+        {error != null && (
+          <ErrorNote
+            error={error}
+            title="That didn't work"
+            onDismiss={() => setError(null)}
+          />
+        )}
+
+        {running ? (
+          <HStack gap={3} vAlign="center">
+            <Spinner />
+            <Text type="supporting">{videoPoseLabel(pose)}</Text>
+          </HStack>
+        ) : (
+          <>
+            <PosePicker pose={pose} onChange={setPose} isDisabled={false} />
+            <Button label="Make the video" variant="primary" onClick={make} />
+          </>
+        )}
+      </VStack>
+    </Card>
+  );
+}
+
+function PosePicker({
+  pose,
+  onChange,
+  isDisabled,
+}: {
+  pose: VideoPose;
+  onChange: (pose: VideoPose) => void;
+  isDisabled: boolean;
+}) {
+  return (
+    <VStack gap={2}>
+      <div className="grid grid-cols-2 gap-2">
+        {VIDEO_POSES.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            disabled={isDisabled}
+            aria-pressed={pose === option.value}
+            className="w-full rounded-xl px-3"
+            style={{
+              border: `1px solid ${
+                pose === option.value
+                  ? 'var(--color-accent)'
+                  : 'var(--color-border)'
+              }`,
+              backgroundColor:
+                pose === option.value
+                  ? 'var(--color-accent-muted)'
+                  : 'transparent',
+              color: 'var(--color-text-primary)',
+              font: 'inherit',
+              fontSize: 'var(--font-size-sm)',
+              minHeight: '2.75rem',
+              cursor: isDisabled ? 'default' : 'pointer',
+            }}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <Text type="supporting">
+        {VIDEO_POSES.find((p) => p.value === pose)?.description}
+      </Text>
     </VStack>
   );
 }

@@ -14,8 +14,10 @@ import {
   type Allowance,
   type Device,
 } from '@hanger/shared/api';
-import type {Health, Outfit, Person} from '@hanger/shared/types';
+import type {Garment, Health, Outfit, Person} from '@hanger/shared/types';
 import {Hanger} from './screens/Hanger';
+import {TryOn} from './screens/TryOn';
+import {BuildOutfit} from './screens/BuildOutfit';
 import {Outfits} from './screens/Outfits';
 import {OutfitDetail} from './screens/OutfitDetail';
 import {Me} from './screens/Me';
@@ -61,6 +63,9 @@ function Wardrobe() {
   const [openOutfit, setOpenOutfit] = useState<Outfit | null>(null);
   const [adding, setAdding] = useState(false);
   const [hanging, setHanging] = useState(false);
+  const [tryingOn, setTryingOn] = useState<Garment | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [outfitsVersion, setOutfitsVersion] = useState(0);
   // Bumped when something is hung, so the grid refetches rather than showing a
   // hanger that is one piece out of date.
   const [hangerVersion, setHangerVersion] = useState(0);
@@ -164,6 +169,45 @@ function Wardrobe() {
   // Photographing something takes the whole screen, tab bar included: it is one
   // task with its own way out, and a bar offering three other places to be is
   // an invitation to lose the photo you just took. Pair does the same.
+  // Same treatment as photographing something, and for the same reason: it's
+  // one task with its own way out, and it runs for about a minute.
+  if (tryingOn) {
+    return (
+      <Shell health={health} person={person}>
+        <TryOn
+          garment={tryingOn}
+          onClose={() => {
+            setTryingOn(null);
+            // The result now belongs to the garment, so the grid behind has to
+            // re-read to know about it.
+            setHangerVersion((v) => v + 1);
+          }}
+          onHung={() => setHangerVersion((v) => v + 1)}
+        />
+      </Shell>
+    );
+  }
+
+  if (building) {
+    return (
+      <Shell health={health} person={person}>
+        <BuildOutfit
+          onBuilt={(outfit) => {
+            setBuilding(false);
+            setTab('outfits');
+            setOutfitsVersion((v) => v + 1);
+            setOpenOutfit(outfit);
+          }}
+          onCancel={() => {
+            setBuilding(false);
+            // It may still be running, and Outfits is where it lands.
+            setOutfitsVersion((v) => v + 1);
+          }}
+        />
+      </Shell>
+    );
+  }
+
   if (hanging) {
     return (
       <Shell health={health} person={person}>
@@ -194,14 +238,25 @@ function Wardrobe() {
         />
       }>
       {tab === 'hanger' && (
-        <Hanger key={hangerVersion} onAdd={() => setAdding(true)} />
+        <Hanger
+          key={hangerVersion}
+          onAdd={() => setAdding(true)}
+          onTryOn={setTryingOn}
+          hasPhoto={person != null}
+          onNeedPhoto={() => setTab('me')}
+        />
       )}
 
       {tab === 'outfits' &&
         (openOutfit ? (
           <OutfitDetail outfit={openOutfit} onBack={() => setOpenOutfit(null)} />
         ) : (
-          <Outfits onOpen={setOpenOutfit} />
+          <Outfits
+            key={outfitsVersion}
+            onOpen={setOpenOutfit}
+            onBuild={() => setBuilding(true)}
+            canBuild={person != null}
+          />
         ))}
 
       {tab === 'me' && (

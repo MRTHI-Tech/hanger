@@ -3,6 +3,7 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Heading} from '@astryxdesign/core/Heading';
+import {Button} from '@astryxdesign/core/Button';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
 import {Badge} from '@astryxdesign/core/Badge';
@@ -10,9 +11,19 @@ import {api, mediaUrl} from '@hanger/shared/api';
 import {formatAmount} from '@hanger/shared/format';
 import type {Outfit} from '@hanger/shared/types';
 import {ErrorNote} from '../components/ErrorNote';
+import {usePollWhileVisible} from '../poll';
 
 /** Looks you've already put together, newest first. */
-export function Outfits({onOpen}: {onOpen: (outfit: Outfit) => void}) {
+export function Outfits({
+  onOpen,
+  onBuild,
+  canBuild,
+}: {
+  onOpen: (outfit: Outfit) => void;
+  onBuild: () => void;
+  /** No photo, nothing to build a look on. */
+  canBuild: boolean;
+}) {
   const [outfits, setOutfits] = useState<Outfit[] | null>(null);
   const [error, setError] = useState<unknown>(null);
 
@@ -28,6 +39,15 @@ export function Outfits({onOpen}: {onOpen: (outfit: Outfit) => void}) {
   useEffect(() => {
     void load();
   }, []);
+
+  // One of these may still be assembling — you can start a look and come
+  // straight back here, and there is no pull-to-refresh on this screen. Slower
+  // than a detail view's poll, because a chain takes minutes and this is a
+  // whole list.
+  const unfinished =
+    outfits?.some((o) => o.status === 'running' || o.status === 'pending') ??
+    false;
+  usePollWhileVisible(load, unfinished, 5000);
 
   if (error != null) {
     return (
@@ -50,7 +70,12 @@ export function Outfits({onOpen}: {onOpen: (outfit: Outfit) => void}) {
       <VStack padding={4} height="100%" vAlign="center">
         <EmptyState
           title="No outfits yet"
-          description="Put a top from one shop together with trousers from another on your laptop, and the finished look shows up here."
+          description="Put a top from one shop together with trousers from another — the pieces don't have to come from the same place, which is the whole point."
+          actions={
+            canBuild ? (
+              <Button label="Build one" variant="primary" onClick={onBuild} />
+            ) : undefined
+          }
         />
       </VStack>
     );
@@ -58,12 +83,17 @@ export function Outfits({onOpen}: {onOpen: (outfit: Outfit) => void}) {
 
   return (
     <VStack padding={4} gap={4}>
-      <VStack gap={1}>
-        <Heading level={2}>Your outfits</Heading>
-        <Text type="supporting">
-          {outfits.length} {outfits.length === 1 ? 'look' : 'looks'}
-        </Text>
-      </VStack>
+      <HStack justify="between" vAlign="center" gap={2}>
+        <VStack gap={1}>
+          <Heading level={2}>Your outfits</Heading>
+          <Text type="supporting">
+            {outfits.length} {outfits.length === 1 ? 'look' : 'looks'}
+          </Text>
+        </VStack>
+        {canBuild && (
+          <Button label="Build one" variant="secondary" size="sm" onClick={onBuild} />
+        )}
+      </HStack>
 
       <div className="grid grid-cols-2 gap-3">
         {outfits.map((outfit) => (

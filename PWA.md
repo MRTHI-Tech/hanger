@@ -474,12 +474,43 @@ leave.
 
 ---
 
-## Phase 6 — Try on, build, generate
+## Phase 6 — Try on, build, generate — **done**
 
 Wire the writes: run a try-on, build an outfit through the chain engine, generate the
-video. The server already does all of it. The work is on the phone side — progress states
-for tasks that take a minute, results that survive the screen locking, and fail-soft when
-a step dies.
+video. The server already did all of it, and did not change.
+
+**"Results that survive the screen locking" cost almost nothing, and it is worth being
+clear about why.** Every long job already runs to completion inside the server —
+`void execute(...)`, with the row as the handle — and the client's polling has never been
+what drives the work forward. It only watches. So a locked phone misses the view, not the
+result, and the fix is not background execution or a service worker: it is to stop asking
+while nobody is looking and ask again the instant they are. That is `poll.ts`, and it is
+forty lines.
+
+The side panel needs none of this, which is why it doesn't have it: a panel is either
+open and visible or closed and unmounted. A phone has a third state — alive, but face
+down on a table — and a timer left running there spends a battery on answers nobody will
+read, while the browser throttles it to roughly once a minute so that the first thing you
+see on returning is a stale screen taking a minute to catch up.
+
+**A try-on's result lives on the garment.** It isn't an event you would go looking for
+later; it is a fact about the piece, and the useful question a week afterwards is "what
+did that look like on me", asked of the thing. `GET /tryon` already answers newest-first,
+so the hanger maps them without a server change — and Your Hanger stops being a grid of
+product shots and becomes a wardrobe of you in things.
+
+Building is slot-first, like the panel's: you tap the place in the outfit and then choose
+something that can go there. `SLOT_CATEGORIES` does the filtering, so the question of
+what a second upper-body piece means — a top, or a layer over it — is answered by which
+row you tapped rather than guessed at afterwards.
+
+**The bug worth recording: one tap was starting two try-ons.** The try-on was kicked off
+from a `useEffect`, and StrictMode invokes effects twice, so every tap created two rows
+and spent two units. React's production build doesn't double-invoke, so this would only
+ever have charged the person developing against a real key — which is the worst place to
+hide it. Starting a paid, side-effectful task from an effect is the wrong shape whatever
+StrictMode does; it is guarded now, and "Try again" stays unguarded because that is a new
+decision by somebody.
 
 Done when: an outfit built entirely on the phone, video and all.
 
@@ -535,7 +566,8 @@ stopped being the last thing once it turned out everything after it writes data.
 | Only your phones can see it | + Phase 3, **~3.5 days** ✅ |
 | Real accounts, live on the internet, extension published | + Phase 4, **~9.5 days** |
 | Hang from a shop | + Phase 5, **~10.5 days** ✅ |
-| Try on, build, share to WhatsApp | + Phases 6–7, **~12 days** |
+| Try on, build an outfit, make the video | + Phase 6, **~11.5 days** ✅ |
+| Share to WhatsApp | + Phase 7, **~12 days** |
 | Everything, screenshots included | + Phase 8, **~13.5 days** |
 
 Call it **two and a half weeks** at the pace of the last few days, for something a
