@@ -6,7 +6,7 @@
  * Two jobs, both of them copies of something that already exists elsewhere in
  * the repo, so that neither is a second source of truth:
  *
- *   icons  rasterised from the shared hanger glyph, at the sizes a home screen
+ *   icons  rasterised from the shared hanger mark, at the sizes a home screen
  *          asks for. Android masks its icons to whatever shape the launcher
  *          fancies, so those are drawn smaller (see drawIcon's scale).
  *   fonts  the same two woff2 files the side panel bundles. The phone must not

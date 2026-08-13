@@ -1,5 +1,5 @@
 /**
- * Generates the extension's PNG icons from the shared hanger glyph.
+ * Generates the extension's PNG icons from the shared hanger mark.
  *
  *   node scripts/make-icons.mjs
  */

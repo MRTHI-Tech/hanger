@@ -166,7 +166,8 @@ shared/               one copy of whatever more than one app needs
     api.ts            typed client for the backend, with a settable base URL
     format.ts         prices
     theme/            the Astryx butter theme
-  scripts/icon.mjs    the hanger glyph, rasterised to PNG
+  assets/logo/        the hanger mark, one drawing every icon comes from
+  scripts/icon.mjs    that mark, rasterised to PNG
 pwa/                  the phone app — see PWA.md
   src/
     App.tsx           header, one scrolling region, bottom tab bar
