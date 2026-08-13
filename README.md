@@ -322,20 +322,51 @@ The next try-on then fails with that code. `{"code":null}` disarms it.
 
 ---
 
+## What has run live
+
+Written down because it was wrong here for a while, and a stale gap list is
+worse than none: it talks people out of things that already work.
+
+With a real `YOUCAM_API_KEY` and `MOCK_MODE=false`, the core loop has been
+exercised against the live APIs, not just against mock mode:
+
+- **Try-on and the outfit chain** — live `cloth-v3` calls, with results
+  downloaded into `./storage` as the real images they are. Mock results are
+  SVG drawings, so a `.jpg` in `tryon.result_path` or `chain_step` is by
+  definition something YouCam made.
+- **Across retailers, which is the whole claim** — garments saved from
+  bash.com, superbalist.com and zara.com, composed into three-piece outfits
+  (top, bottom, shoes) in one image.
+- **Video** — live `image-to-video` calls, finished mp4s served from our own
+  storage.
+- **Alternatives** — live SerpApi Google Lens results: real merchants, real
+  product links, real prices.
+- **Two accounts on one server**, each with their own photo and their own
+  wardrobe.
+
+`GET /health` reports what has been spent. The numbers in `spend_log` are the
+audit trail; nothing here is inferred from the code.
+
 ## Known gaps
 
-- **Not verified against the live YouCam API.** This build had no
-  `YOUCAM_API_KEY`. The live client is written to §5 of the spec and exercised
-  through the same code path as mock mode, but no live call has been made.
-- **The SerpApi parser is built from SerpApi's published example response**,
-  not a live call, for the same reason. The first live response logs its
-  top-level and per-match keys so a shape mismatch announces itself instead of
-  quietly returning an empty list. See the `_provenance` block in
-  `server/fixtures/serpapi-google-lens.json`.
 - **AI Photo Enhance is stubbed for live mode.** Rescuing an undersized
-  alternative thumbnail needs the real endpoint path verified first, so live
-  mode returns "open the product page to try this on" rather than guessing a
-  URL. Mock mode exercises the code path.
+  alternative thumbnail needs the real endpoint path verified first, so
+  `enhanceImage()` returns null and the caller says "open the product page to
+  try this on" rather than guessing a URL. Mock mode exercises the code path.
+- **Alternative prices can carry the wrong currency.** A result from a foreign
+  storefront whose price has no explicit currency is stamped with the local one
+  — an adidas Oman listing came back as `18 ZAR`. Cheapest-first sorting is the
+  point of that screen, so a mislabelled price doesn't just read wrong, it
+  sorts to the top.
+- **The SerpApi parser was built from SerpApi's published example response**
+  rather than a live one. It has since been fed live responses without a shape
+  mismatch, and the first response of a run still logs its top-level and
+  per-match keys so a future change announces itself instead of quietly
+  returning an empty list. See the `_provenance` block in
+  `server/fixtures/serpapi-google-lens.json`.
+- **It runs on a laptop.** `render.yaml` is written but nothing is deployed, so
+  the phone still needs the laptop switched on and on the same Wi-Fi, and the
+  extension still points at `localhost:8787`.
 - React 19 and Tailwind v4, where the spec said 18 and (implicitly) v3 — the
   butter theme's runtime requires React ≥19, and its Tailwind bridge is v4-only.
   The theme is a fixed requirement, so the versions gave way.

@@ -1,6 +1,6 @@
 {
   "_provenance": {
-    "note": "Field shape taken from SerpApi's own published Google Lens example response (serpapi.com/google-lens-visual-matches-api), NOT from a live call \u2014 this build had no SERPAPI_KEY. The parser is built around these field names. When a live key is added, the first live response is logged with its top-level keys (see alternatives.ts, logShapeOnce) so any mismatch shows up immediately rather than silently returning nothing.",
+    "note": "Field shape taken from SerpApi's own published Google Lens example response (serpapi.com/google-lens-visual-matches-api) rather than from a live call \u2014 the build had no SERPAPI_KEY at the time. Live responses have since come back through the same parser without a shape mismatch, so these field names are confirmed, not assumed. The first response of a run is still logged with its top-level keys (see alternatives.ts, logShapeOnce) so a future change on their side shows up immediately rather than silently returning nothing.",
     "observedAt": "2026-08-04",
     "engine": "google_lens",
     "type": "visual_matches",
