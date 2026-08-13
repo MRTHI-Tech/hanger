@@ -21,9 +21,9 @@ import {Later} from '../components/Later';
 import {FilterChip} from '../components/FilterChip';
 
 /**
- * Your Hanger on the phone: everything kept, from every shop. Same content as
- * the panel's, same cross-retailer point — read-only until Phase 5 gives the
- * phone something to add.
+ * Your Hanger on the phone: everything kept, from every shop, plus whatever you
+ * photographed off a shop floor. Same content as the panel's, same
+ * cross-retailer point.
  */
 export function Hanger({onAdd}: {onAdd: () => void}) {
   const [garments, setGarments] = useState<Garment[] | null>(null);
@@ -65,9 +65,9 @@ export function Hanger({onAdd}: {onAdd: () => void}) {
       <VStack padding={4} height="100%" gap={4} vAlign="center">
         <EmptyState
           title="Nothing on the hanger yet"
-          description="Try something on from any shop on your laptop and tap Hang it. Whatever you keep there shows up here."
+          description="Photograph something you own and it hangs here. So does anything you keep from a shop on your laptop."
           actions={
-            <Button label="Add from your phone" variant="secondary" onClick={onAdd} />
+            <Button label="Photograph something" variant="primary" onClick={onAdd} />
           }
         />
       </VStack>

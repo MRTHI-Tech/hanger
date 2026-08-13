@@ -8,6 +8,8 @@
     "./types": "./src/types.ts",
     "./api": "./src/api.ts",
     "./format": "./src/format.ts",
+    "./imageChecks": "./src/imageChecks.ts",
+    "./guides": "./src/guides/index.ts",
     "./text": "./src/text.ts",
     "./theme": "./src/theme/butterTheme.ts",
     "./illustrations": "./src/illustrations/pose.tsx",

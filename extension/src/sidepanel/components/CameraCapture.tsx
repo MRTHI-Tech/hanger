@@ -3,7 +3,7 @@ import {VStack} from '@astryxdesign/core/VStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Button} from '@astryxdesign/core/Button';
-import {canvasToFile} from '../imageChecks';
+import {canvasToFile} from '@hanger/shared/imageChecks';
 
 /**
  * Take a photo with the machine's camera. Shared by onboarding (a person) and

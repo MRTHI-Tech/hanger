@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useEffect, useState} from 'react';
 import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
@@ -9,19 +9,18 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {api} from '@hanger/shared/api';
-import {checkGarmentPhoto, normalisePhoto} from '@hanger/shared/imageChecks';
+import {checkGarmentPhoto} from '@hanger/shared/imageChecks';
 import {GarmentGuide} from '@hanger/shared/guides';
-import {CameraCapture} from '../components/CameraCapture';
-import {PhoneHandoff} from '../components/PhoneHandoff';
-import {ErrorNote} from '../components/ErrorNote';
 import {
   CATEGORY_LABELS,
   OWNABLE,
   type Garment,
   type TryOnCategory,
 } from '@hanger/shared/types';
+import {PhotoPick} from '../components/PhotoPick';
+import {ErrorNote} from '../components/ErrorNote';
 
-type Stage = 'photo' | 'camera' | 'phone' | 'checking' | 'details' | 'saving';
+type Stage = 'photo' | 'checking' | 'details' | 'saving';
 
 /** What to call it, per category, when the name is left empty. */
 const PLACEHOLDERS: Record<TryOnCategory, string> = {
@@ -32,15 +31,25 @@ const PLACEHOLDERS: Record<TryOnCategory, string> = {
 };
 
 /**
- * Hang something out of your own wardrobe. The half of an outfit that isn't
- * for sale: photograph what you own, and it sits in Your Hanger next to the
- * things you're still deciding about, chainable with them.
+ * Photograph something and hang it — the thing the phone is for.
  *
- * No retailer, no price, no product page — so the name is the only thing that
- * identifies it later, in the buy list and the slot picker. That's why it's
- * asked for rather than defaulted.
+ * The panel has the same flow in `AddOwned`, and this is deliberately not a
+ * port of it. The panel's version leads with "use my phone", because on a
+ * laptop the garment is in another room; here the garment is in your hands and
+ * the camera is the screen you're holding, so the handoff route disappears
+ * entirely and the capture is one tap.
+ *
+ * It takes the whole screen rather than opening in a sheet. The sheet that got
+ * you here is already at the foot of the screen, and a sheet raised over a
+ * sheet is one of the few phone layouts that is properly broken rather than
+ * merely ugly — and the details step wants the room once a keyboard is up.
+ *
+ * A name and a category are all this asks for, which is all
+ * `POST /garments/owned` accepts: a piece photographed off a shop floor has no
+ * product page for us to read a price off, and inventing fields for the person
+ * to type is how you get a form nobody finishes.
  */
-export function AddOwned({
+export function AddGarment({
   onHung,
   onCancel,
 }: {
@@ -48,95 +57,37 @@ export function AddOwned({
   onCancel: () => void;
 }) {
   const [stage, setStage] = useState<Stage>('photo');
-  const [file, setFile] = useState<File | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [category, setCategory] = useState<TryOnCategory | null>(null);
   const [title, setTitle] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
 
-  // The preview is an object URL over the chosen file; it has to be released
-  // or every retry leaks the last photo.
+  // The preview is an object URL over the chosen file; it has to be released or
+  // every retry leaks the last photo.
   useEffect(() => {
-    if (!file) {
+    if (!photo) {
       setPreviewUrl(null);
       return;
     }
-    const url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(photo);
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  const cameraUnavailable = useCallback((reason: string) => {
-    setProblem(reason);
-    setStage('photo');
-  }, []);
-
-  // Stable: PhoneHandoff polls in an effect keyed on this, and a new function
-  // every render would restart the poll every render.
-  const accept = useCallback(async (candidate: File) => {
-    setProblem(null);
-    setError(null);
-    setStage('checking');
-
-    // Shrink before checking: a photo straight off a phone is routinely wider
-    // than the 4096px ceiling, and "use a smaller one" is not advice anybody
-    // can act on when the picture came from the handoff.
-    const photo = await normalisePhoto(candidate);
-
-    const check = await checkGarmentPhoto(photo);
-    if (!check.ok) {
-      setProblem(check.problem ?? "That photo won't work.");
-      setStage('photo');
-      return;
-    }
-
-    setFile(photo);
-    setStage('details');
-  }, []);
+  }, [photo]);
 
   async function hang() {
-    if (!file || !category) return;
+    if (!photo || !category) return;
     setError(null);
     setStage('saving');
     try {
-      const garment = await api.saveOwnedGarment(file, {
-        title: title.trim(),
-        category,
-      });
-      onHung(garment);
+      onHung(
+        await api.saveOwnedGarment(photo, {title: title.trim(), category}),
+      );
     } catch (e) {
       setError(e);
       setStage('details');
     }
-  }
-
-  if (stage === 'camera') {
-    return (
-      <CameraCapture
-        title="Fill the frame"
-        hint="One piece, laid flat or on a hanger, on a plain background."
-        facing="environment"
-        captureLabel="Take the photo"
-        filename="owned.jpg"
-        onCapture={accept}
-        onCancel={() => setStage('photo')}
-        onUnavailable={cameraUnavailable}
-      />
-    );
-  }
-
-  if (stage === 'phone') {
-    return (
-      <PhoneHandoff
-        purpose="garment"
-        title="Use your phone"
-        hint="The piece is in your wardrobe, not on your laptop. Photograph it where it is."
-        onPhoto={accept}
-        onCancel={() => setStage('photo')}
-      />
-    );
   }
 
   if (stage === 'checking') {
@@ -155,7 +106,7 @@ export function AddOwned({
   if (stage === 'details' || stage === 'saving') {
     const busy = stage === 'saving';
     return (
-      <VStack padding={4} gap={4} isScrollable>
+      <VStack padding={4} gap={4}>
         <VStack gap={1}>
           <Heading level={2}>What is it?</Heading>
           <Text type="supporting">
@@ -174,7 +125,10 @@ export function AddOwned({
               src={previewUrl}
               alt="The piece you're hanging"
               className="block w-full"
-              style={{maxHeight: 300, objectFit: 'contain'}}
+              // Capped in viewport units rather than pixels: this is the whole
+              // screen on a phone, and the fields below it have to stay above
+              // the fold on a small one.
+              style={{maxHeight: '38vh', objectFit: 'contain'}}
             />
           </div>
         )}
@@ -229,7 +183,7 @@ export function AddOwned({
               label="Use a different photo"
               variant="ghost"
               onClick={() => {
-                setFile(null);
+                setPhoto(null);
                 setStage('photo');
               }}
             />
@@ -240,12 +194,12 @@ export function AddOwned({
   }
 
   return (
-    <VStack padding={4} gap={4} isScrollable>
+    <VStack padding={4} gap={4}>
       <VStack gap={1}>
-        <Heading level={2}>Something you already own</Heading>
+        <Heading level={2}>Photograph it</Heading>
         <Text type="supporting">
-          Photograph a piece from your own wardrobe and it hangs beside the
-          things you're still deciding about.
+          One piece, filling the frame. It hangs beside everything you've kept
+          from a shop, and chains with it.
         </Text>
       </VStack>
 
@@ -263,38 +217,27 @@ export function AddOwned({
         <GarmentGuide />
       </Card>
 
-      <VStack gap={2}>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/jpeg,image/png"
-          className="hidden"
-          onChange={(e) => {
-            const chosen = e.target.files?.[0];
-            e.target.value = '';
-            if (chosen) void accept(chosen);
-          }}
-        />
-        {/* The piece is hanging in a wardrobe in another room, so the phone is
-            the likeliest camera — it leads. The laptop's own camera is kept
-            for anyone holding the garment up to the screen. */}
-        <Button
-          label="Use my phone"
-          variant="primary"
-          onClick={() => setStage('phone')}
-        />
-        <Button
-          label="Choose a photo"
-          variant="secondary"
-          onClick={() => fileInput.current?.click()}
-        />
-        <Button
-          label="Take one now"
-          variant="secondary"
-          onClick={() => setStage('camera')}
-        />
-        <Button label="Not now" variant="ghost" onClick={onCancel} />
-      </VStack>
+      <PhotoPick
+        facing="environment"
+        cameraLabel="Take a photo"
+        rollLabel="Choose from photos"
+        check={checkGarmentPhoto}
+        onStart={() => {
+          setProblem(null);
+          setError(null);
+          setStage('checking');
+        }}
+        onProblem={(p) => {
+          setProblem(p);
+          setStage('photo');
+        }}
+        onPhoto={(chosen) => {
+          setPhoto(chosen);
+          setStage('details');
+        }}
+      />
+
+      <Button label="Not now" variant="ghost" onClick={onCancel} />
     </VStack>
   );
 }
@@ -316,7 +259,7 @@ function CategoryOption({
       onClick={onClick}
       disabled={isDisabled}
       aria-pressed={isActive}
-      className="w-full rounded-xl px-3 py-3"
+      className="w-full rounded-xl px-3"
       style={{
         border: `1px solid ${
           isActive ? 'var(--color-accent)' : 'var(--color-border)'
@@ -327,6 +270,8 @@ function CategoryOption({
         color: 'var(--color-text-primary)',
         font: 'inherit',
         fontSize: 'var(--font-size-sm)',
+        // A thumb target, not a mouse one: 44px is the floor on both platforms.
+        minHeight: '2.75rem',
         cursor: isDisabled ? 'default' : 'pointer',
         opacity: isDisabled ? 0.6 : 1,
       }}>

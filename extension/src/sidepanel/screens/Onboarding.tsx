@@ -8,8 +8,8 @@ import {Card} from '@astryxdesign/core/Card';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {api, mediaUrl} from '@hanger/shared/api';
-import {checkPersonPhoto} from '../imageChecks';
-import {PoseGuide} from '../components/PoseGuide';
+import {checkPersonPhoto, normalisePhoto} from '@hanger/shared/imageChecks';
+import {PoseGuide} from '@hanger/shared/guides';
 import {CameraCapture} from '../components/CameraCapture';
 import {ErrorNote} from '../components/ErrorNote';
 
@@ -45,7 +45,12 @@ export function Onboarding({
     setError(null);
     setStage('checking');
 
-    const check = await checkPersonPhoto(file);
+    // Shrink first — a photo taken on a phone and picked up here is routinely
+    // past the 4096px ceiling, and that reads as a rejection rather than as
+    // something we could simply have handled.
+    const photo = await normalisePhoto(file);
+
+    const check = await checkPersonPhoto(photo);
     if (!check.ok) {
       setProblem(check.problem ?? 'That photo will not work.');
       setStage('intro');
@@ -54,9 +59,11 @@ export function Onboarding({
 
     setStage('uploading');
     try {
-      const result = await api.uploadPersonPhoto(file, file.name || 'photo.jpg');
+      const result = await api.uploadPersonPhoto(photo, photo.name || 'photo.jpg');
       setPhotoUrl(mediaUrl(result.photoUrl));
-      setWarnings([...check.warnings, ...result.warnings]);
+      // The server's, not both: it repeats every check this file just ran, so
+      // concatenating them printed the same advice twice in two voices.
+      setWarnings(result.warnings);
       setStage('done');
     } catch (e) {
       setError(e);

@@ -5,7 +5,9 @@ import {Text} from '@astryxdesign/core/Text';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Button} from '@astryxdesign/core/Button';
 import {Badge} from '@astryxdesign/core/Badge';
+import {Banner} from '@astryxdesign/core/Banner';
 import {Card} from '@astryxdesign/core/Card';
+import {Spinner} from '@astryxdesign/core/Spinner';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {
   api,
@@ -14,8 +16,12 @@ import {
   type Device,
   type PairingCode,
 } from '@hanger/shared/api';
+import {checkPersonPhoto} from '@hanger/shared/imageChecks';
+import {PoseGuide} from '@hanger/shared/guides';
 import type {Health, Person} from '@hanger/shared/types';
 import {ErrorNote} from '../components/ErrorNote';
+import {PhotoPick} from '../components/PhotoPick';
+import {Sheet} from '../components/Sheet';
 import {SignOutCard} from '../auth';
 import {
   guessServerUrl,
@@ -39,6 +45,7 @@ export function Me({
   device,
   allowance,
   onUnpaired,
+  onPersonChanged,
 }: {
   person: Person | null;
   health: Health | null;
@@ -46,51 +53,13 @@ export function Me({
   device: Device | null;
   allowance: Allowance | null;
   onUnpaired: () => void;
+  onPersonChanged: (person: Person | null) => void;
 }) {
   return (
     <VStack padding={4} gap={4}>
       <Heading level={2}>You</Heading>
 
-      <Card padding={3}>
-        <HStack gap={3} vAlign="center">
-          {person ? (
-            <img
-              src={mediaUrl(person.photoUrl)}
-              alt="Your photo"
-              className="shrink-0 overflow-hidden rounded-full"
-              style={{
-                width: '4rem',
-                height: '4rem',
-                objectFit: 'cover',
-                objectPosition: 'top',
-                border: '1px solid var(--color-border-emphasized)',
-                backgroundColor: 'var(--color-background-muted)',
-              }}
-            />
-          ) : (
-            <div
-              aria-hidden
-              className="shrink-0 rounded-full"
-              style={{
-                width: '4rem',
-                height: '4rem',
-                border: '1px dashed var(--color-border-emphasized)',
-                backgroundColor: 'var(--color-background-muted)',
-              }}
-            />
-          )}
-          <VStack gap={0.5}>
-            <Text type="label">
-              {person ? 'Your photo' : 'No photo yet'}
-            </Text>
-            <Text type="supporting">
-              {person
-                ? 'Everything is tried on with this one.'
-                : 'Add one on the laptop and everything gets tried on with it.'}
-            </Text>
-          </VStack>
-        </HStack>
-      </Card>
+      <PhotoCard person={person} onPersonChanged={onPersonChanged} />
 
       <ServerCard />
 
@@ -102,6 +71,217 @@ export function Me({
 
       <PairingCard device={device} onUnpaired={onUnpaired} />
     </VStack>
+  );
+}
+
+/**
+ * Your photo — the one every try-on is built on.
+ *
+ * The phone used to say "Add one on the laptop", which was a hole rather than a
+ * decision: the phone has the better camera, it's the one in your hand, and a
+ * phone that can hang a garment but can't photograph you can't try that garment
+ * on. So this is the same job the panel's onboarding does, laid out for a
+ * thumb — the guidance drawings and the two ways in, in a sheet.
+ *
+ * Warnings are shown and do not block. §5.4 separates "we can't use this" from
+ * "this will work but head-to-toe would work better", and only the first is a
+ * refusal — the server sends its own along in the same shape.
+ */
+function PhotoCard({
+  person,
+  onPersonChanged,
+}: {
+  person: Person | null;
+  onPersonChanged: (person: Person | null) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [busy, setBusy] = useState<null | 'checking' | 'uploading' | 'removing'>(
+    null,
+  );
+  const [problem, setProblem] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  function open() {
+    setProblem(null);
+    setError(null);
+    setConfirmingRemove(false);
+    setIsOpen(true);
+  }
+
+  async function upload(photo: File) {
+    setBusy('uploading');
+    setError(null);
+    try {
+      const result = await api.uploadPersonPhoto(photo, photo.name || 'photo.jpg');
+      // Re-read rather than assembling a Person out of the upload result: the
+      // row has a created_at we'd otherwise be inventing.
+      onPersonChanged(await api.getPerson());
+      // The server's warnings, not the client's as well. The local pass exists
+      // to fail fast before the upload; once the server has answered, it has
+      // repeated every one of those checks and its wording is the one to show.
+      // Concatenating both said "this looks cropped" twice, in two voices.
+      setWarnings(result.warnings);
+      // Nothing to read means nothing to stay for.
+      if (result.warnings.length === 0) setIsOpen(false);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function remove() {
+    setBusy('removing');
+    setError(null);
+    try {
+      await api.deletePerson();
+      onPersonChanged(null);
+      setWarnings([]);
+      setIsOpen(false);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(null);
+      setConfirmingRemove(false);
+    }
+  }
+
+  return (
+    <>
+      <Card padding={3}>
+        <VStack gap={3}>
+          <HStack gap={3} vAlign="center">
+            {person ? (
+              <img
+                src={mediaUrl(person.photoUrl)}
+                alt="Your photo"
+                className="shrink-0 overflow-hidden rounded-full"
+                style={{
+                  width: '4rem',
+                  height: '4rem',
+                  objectFit: 'cover',
+                  objectPosition: 'top',
+                  border: '1px solid var(--color-border-emphasized)',
+                  backgroundColor: 'var(--color-background-muted)',
+                }}
+              />
+            ) : (
+              <div
+                aria-hidden
+                className="shrink-0 rounded-full"
+                style={{
+                  width: '4rem',
+                  height: '4rem',
+                  border: '1px dashed var(--color-border-emphasized)',
+                  backgroundColor: 'var(--color-background-muted)',
+                }}
+              />
+            )}
+            <VStack gap={0.5}>
+              <Text type="label">{person ? 'Your photo' : 'No photo yet'}</Text>
+              <Text type="supporting">
+                {person
+                  ? 'Everything is tried on with this one.'
+                  : 'Take one and everything gets tried on with it.'}
+              </Text>
+            </VStack>
+          </HStack>
+
+          <Button
+            label={person ? 'Change your photo' : 'Take your photo'}
+            variant={person ? 'secondary' : 'primary'}
+            onClick={open}
+          />
+        </VStack>
+      </Card>
+
+      <Sheet
+        title="Your photo"
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}>
+        <VStack gap={4}>
+          <VStack gap={1}>
+            <Heading level={3}>Your photo</Heading>
+            <Text type="supporting">
+              One photo, and everything in your hanger gets tried on with it.
+            </Text>
+          </VStack>
+
+          {problem && (
+            <Banner
+              status="warning"
+              title="That photo won't work"
+              description={problem}
+              isDismissable
+              onDismiss={() => setProblem(null)}
+            />
+          )}
+
+          {warnings.length > 0 && (
+            <Banner
+              status="warning"
+              title="Worth knowing"
+              description={warnings.join(' ')}
+            />
+          )}
+
+          {error != null && (
+            <ErrorNote
+              error={error}
+              title="We couldn't save that"
+              onDismiss={() => setError(null)}
+            />
+          )}
+
+          <Card variant="muted">
+            <PoseGuide />
+          </Card>
+
+          {busy === 'checking' || busy === 'uploading' ? (
+            <Card>
+              <HStack gap={3} vAlign="center">
+                <Spinner />
+                <Text>
+                  {busy === 'checking' ? 'Checking your photo' : 'Saving it'}
+                </Text>
+              </HStack>
+            </Card>
+          ) : (
+            <PhotoPick
+              facing="user"
+              cameraLabel={person ? 'Take a new one' : 'Take your photo'}
+              rollLabel="Choose from photos"
+              check={checkPersonPhoto}
+              isDisabled={busy != null}
+              onStart={() => {
+                setProblem(null);
+                setWarnings([]);
+                setError(null);
+                setBusy('checking');
+              }}
+              onProblem={(p) => {
+                setProblem(p);
+                setBusy(null);
+              }}
+              onPhoto={(photo) => void upload(photo)}
+            />
+          )}
+
+          {person && busy == null && (
+            <Button
+              label={confirmingRemove ? 'Yes, remove it' : 'Remove photo'}
+              variant={confirmingRemove ? 'primary' : 'ghost'}
+              onClick={() => {
+                if (confirmingRemove) void remove();
+                else setConfirmingRemove(true);
+              }}
+            />
+          )}
+        </VStack>
+      </Sheet>
+    </>
   );
 }
 

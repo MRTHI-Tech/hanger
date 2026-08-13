@@ -192,9 +192,10 @@ There is a second app in `pwa/`: the same hanger, on a phone. It talks to the
 same server and the same database, so anything kept from the side panel is
 already there. [PWA.md](PWA.md) is its specification and build order.
 
-**Today it is read-only** — Phases 0–3 of that plan. It shows Your Hanger, your
-outfits and their buy lists. Adding a garment, trying one on and sharing to
-WhatsApp are the phases after this one, and the app says so where each will go.
+It shows Your Hanger, your outfits and their buy lists, and it photographs:
+your own photo, and any piece you own or find on a shop floor — camera or photo
+roll, straight onto the hanger. Trying one on and sharing to WhatsApp are the
+phases after this one, and the app says so where each will go.
 
 ```bash
 npm run dev:phone

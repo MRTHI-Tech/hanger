@@ -415,17 +415,57 @@ and testing that nobody leaks into anybody else is the part that doesn't compres
 
 ---
 
-## Phase 5 — Hang something from the shop floor
+## Phase 5 — Hang something from the shop floor — **done**
 
-The headline feature. Camera opens, you photograph the garment, you add what you know
-(name, price, where), it hangs.
+The headline feature. Camera opens, you photograph the garment, you add what you know,
+it hangs.
 
-Most of this exists: `AddOwned.tsx` is the flow, `handoffPage.ts` already does phone
-camera capture, and the upload route already accepts phone photos. This is largely
-reassembly plus the garment-photo quality checks from `§5.4`.
+Most of this existed: `AddOwned.tsx` is the flow, and `POST /garments/owned` already
+took a photo, a name and a category. The server did not change at all.
 
-The HTTPS problem from Phase 1 is already solved by the time we get here — Phase 4 put the
-app on a real host, and a real host means HTTPS means the camera works.
+**It asks for a name and a category, not a price.** The sketch above said "name, price,
+where", and the server has never accepted those for an owned piece — an outfit's buy
+list shows "Yours" where the price would be, deliberately. Adding them is a small change
+whenever it earns its place (`price_amount`, `price_currency` and `retailer` are already
+columns, sitting `NULL`); inventing two more fields to type, in a shop, was not worth it
+for the first version.
+
+**No viewfinder.** The obvious move was to port the panel's `CameraCapture`, and it was
+wrong three times over: `getUserMedia` needs a secure context, so it is dead on the LAN
+address development actually happens at; a canvas grab of a video frame is a worse
+photograph than the camera app's own capture, and that photo is the input to a try-on;
+and in a home-screen PWA on iOS it has a long history of not working at all. A file input
+with `capture` opens the camera app, costs no code, and survives all three. The framing
+advice people actually read is the drawings shown before they tap.
+
+That also dissolved the HTTPS problem Phase 1 flagged and Phase 4 was expected to solve:
+a file picker is not gated on a secure context, so the one route in works on plain
+`http://` over the LAN today.
+
+**The thing that would have bitten in a shop:** the §5.4 checks cap the long side at
+4096px, and were written for a file picker on a laptop, where "use a smaller photo" is
+advice you can act on. A 48MP phone shoots 8064×6048, and on a phone that message is a
+dead end. So photos are now *normalised before they are checked* — decoded
+`from-image` so EXIF rotation is baked in, scaled to a 2048px long side, re-encoded
+JPEG. Two old rejections stopped existing on the way: HEIC (Safari decodes it, so the
+canvas produces something we accept, rather than telling an iPhone to save a JPG) and
+anything over 10MB. Verified: a 5000×6000 photo hangs, and reaches the server as
+1707×2048. The panel got the same treatment, because a photo arriving over the handoff
+came off a phone too.
+
+**The phone can take your photo now**, which was not in this plan and should have been:
+"You" said *"Add one on the laptop"*, and a phone that can hang a garment but can't
+photograph you can't try that garment on. It's the same picker with `checkPersonPhoto`
+and the pose drawings.
+
+`imageChecks.ts` and both photo guides moved into `shared/` on the way — the panel and
+the phone ask for the same two photographs under the same rules, and a second copy of
+"what YouCam accepts" drifts silently until a try-on fails for a reason nobody can see.
+
+One thing worth recording because it was only visible once both clients showed it: the
+warnings were being printed twice, once in the client's wording and once in the server's,
+because both run the same checks and the screen concatenated them. The server's answer
+is the one that ships — it has repeated every check by then.
 
 Done when: you photograph something in a shop and it is in your Chrome hanger before you
 leave.
@@ -494,7 +534,8 @@ stopped being the last thing once it turned out everything after it writes data.
 | Real hanger on your phone, read-only | + Phase 2, **~2.5 days** ✅ |
 | Only your phones can see it | + Phase 3, **~3.5 days** ✅ |
 | Real accounts, live on the internet, extension published | + Phase 4, **~9.5 days** |
-| Hang from a shop, try on, share to WhatsApp | + Phases 5–7, **~12 days** |
+| Hang from a shop | + Phase 5, **~10.5 days** ✅ |
+| Try on, build, share to WhatsApp | + Phases 6–7, **~12 days** |
 | Everything, screenshots included | + Phase 8, **~13.5 days** |
 
 Call it **two and a half weeks** at the pace of the last few days, for something a

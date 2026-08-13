@@ -20,6 +20,7 @@ import {Outfits} from './screens/Outfits';
 import {OutfitDetail} from './screens/OutfitDetail';
 import {Me} from './screens/Me';
 import {AddSheet} from './screens/AddSheet';
+import {AddGarment} from './screens/AddGarment';
 import {Pair} from './screens/Pair';
 import {RequireSignIn} from './auth';
 import {ErrorNote} from './components/ErrorNote';
@@ -30,9 +31,10 @@ import {rememberToken} from './device';
 /**
  * Hanger on the phone.
  *
- * Read-only for now, and the same hanger the side panel shows — there is one
- * server and one database, and this is a second window onto it rather than a
- * second copy of anything.
+ * The same hanger the side panel shows — there is one server and one database,
+ * and this is a second window onto it rather than a second copy of anything.
+ * It writes as well as reads now: a photograph taken here hangs in the panel,
+ * because it was never the panel's hanger to begin with.
  *
  * The layout is fixed header, one scrolling region, fixed bar. Nothing else on
  * a phone should move when the content does.
@@ -58,6 +60,10 @@ function Wardrobe() {
   const [tab, setTab] = useState<Tab>('hanger');
   const [openOutfit, setOpenOutfit] = useState<Outfit | null>(null);
   const [adding, setAdding] = useState(false);
+  const [hanging, setHanging] = useState(false);
+  // Bumped when something is hung, so the grid refetches rather than showing a
+  // hanger that is one piece out of date.
+  const [hangerVersion, setHangerVersion] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,6 +161,24 @@ function Wardrobe() {
     );
   }
 
+  // Photographing something takes the whole screen, tab bar included: it is one
+  // task with its own way out, and a bar offering three other places to be is
+  // an invitation to lose the photo you just took. Pair does the same.
+  if (hanging) {
+    return (
+      <Shell health={health} person={person}>
+        <AddGarment
+          onHung={() => {
+            setHanging(false);
+            setTab('hanger');
+            setHangerVersion((v) => v + 1);
+          }}
+          onCancel={() => setHanging(false)}
+        />
+      </Shell>
+    );
+  }
+
   return (
     <Shell
       health={health}
@@ -169,7 +193,9 @@ function Wardrobe() {
           onAdd={() => setAdding(true)}
         />
       }>
-      {tab === 'hanger' && <Hanger onAdd={() => setAdding(true)} />}
+      {tab === 'hanger' && (
+        <Hanger key={hangerVersion} onAdd={() => setAdding(true)} />
+      )}
 
       {tab === 'outfits' &&
         (openOutfit ? (
@@ -189,10 +215,18 @@ function Wardrobe() {
             setPaired(false);
             setDevice(null);
           }}
+          onPersonChanged={setPerson}
         />
       )}
 
-      <AddSheet isOpen={adding} onClose={() => setAdding(false)} />
+      <AddSheet
+        isOpen={adding}
+        onClose={() => setAdding(false)}
+        onPhotograph={() => {
+          setAdding(false);
+          setHanging(true);
+        }}
+      />
     </Shell>
   );
 }

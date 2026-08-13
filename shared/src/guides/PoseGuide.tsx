@@ -17,8 +17,7 @@ import {
  *
  * The drawings are the commissioned ones in shared/assets/illustrations, drawn
  * in currentColor so the ✓/✕ framing below can tint them rather than needing a
- * second copy of each. They live in shared/ because the phone will want the
- * same four the moment it grows a camera.
+ * second copy of each.
  */
 
 export function PoseGuide() {
@@ -71,13 +70,16 @@ function Example({
         }}>
         <Art preserveAspectRatio="xMidYMid slice" />
       </div>
-      <HStack gap={1} vAlign="center">
+      {/* Top-aligned, not centred: at four columns on a phone the captions wrap
+          to two lines, and a centred tick then floats halfway down its own row
+          while its neighbours' sit at the first line. */}
+      <HStack gap={1} vAlign="start">
         <span
           aria-hidden
           style={{
             color: good ? 'var(--color-success)' : 'var(--color-text-disabled)',
             fontSize: 'var(--font-size-sm)',
-            lineHeight: 1,
+            lineHeight: 'var(--line-height-sm, 1.5)',
           }}>
           {good ? '✓' : '✕'}
         </span>

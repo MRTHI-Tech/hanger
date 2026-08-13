@@ -54,13 +54,15 @@ function Example({
         }}>
         <Figure kind={kind} />
       </div>
-      <HStack gap={1} vAlign="center">
+      {/* Top-aligned for the reason PoseGuide's is: four columns on a phone
+          wraps the captions, and a centred tick drifts out of the row. */}
+      <HStack gap={1} vAlign="start">
         <span
           aria-hidden
           style={{
             color: good ? 'var(--color-success)' : 'var(--color-text-disabled)',
             fontSize: 'var(--font-size-sm)',
-            lineHeight: 1,
+            lineHeight: 'var(--line-height-sm, 1.5)',
           }}>
           {good ? '✓' : '✕'}
         </span>
