@@ -15,9 +15,9 @@ import {
  * person, facing forward — and a sentence of instructions is much easier to
  * skip than four little drawings.
  *
- * The drawings are the commissioned ones in shared/assets/illustrations, drawn
- * in currentColor so the ✓/✕ framing below can tint them rather than needing a
- * second copy of each.
+ * The drawings are the commissioned ones in shared/assets/illustrations/pose,
+ * drawn in currentColor so the ✓/✕ framing below can tint them rather than
+ * needing a second copy of each.
  */
 
 export function PoseGuide() {
