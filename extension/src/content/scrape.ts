@@ -1,10 +1,19 @@
 import {decodeEntities} from '@hanger/shared/text';
-import type {
-  GarmentCategory,
-  Price,
-  ScoredImage,
-  ScrapedProduct,
-} from '@hanger/shared/types';
+import {
+  collectJsonLdProducts,
+  CURRENCY_SYMBOLS,
+  inferCategory,
+  jsonLdBrand,
+  jsonLdHasOffer,
+  jsonLdImages,
+  jsonLdName,
+  jsonLdPrice,
+  looksLikePageFurniture,
+  parseNumber,
+  parsePriceText,
+  type JsonLdNode,
+} from '@hanger/shared/product';
+import type {Price, ScoredImage, ScrapedProduct} from '@hanger/shared/types';
 
 /**
  * Product page detection and extraction (§9).
@@ -80,26 +89,19 @@ export function detectSignals(): DetectionSignals {
  * page that declares itself a product with a price is not a listing page.
  */
 export function isProductPage(signals = detectSignals()): boolean {
-  if (signals.jsonLdProduct && jsonLdHasOffer()) return true;
+  if (signals.jsonLdProduct && jsonLdHasOffer(readJsonLdProducts())) return true;
   return Object.values(signals).filter(Boolean).length >= 2;
-}
-
-function jsonLdHasOffer(): boolean {
-  return readJsonLdProducts().some((product) => {
-    const offers = product.offers;
-    const offer = Array.isArray(offers) ? offers[0] : offers;
-    if (!offer || typeof offer !== 'object') return false;
-    const o = offer as JsonLdNode;
-    return o.price != null || o.lowPrice != null || o.priceSpecification != null;
-  });
 }
 
 // ---------------------------------------------------------------------------
 // Structured data
 // ---------------------------------------------------------------------------
 
-type JsonLdNode = Record<string, unknown>;
-
+/**
+ * The page's own JSON-LD, parsed. The walking and the field readers are in
+ * `@hanger/shared/product` — none of that ever needed a DOM, and the server
+ * reads the same markup off a link nobody opened.
+ */
 function readJsonLdProducts(): JsonLdNode[] {
   const out: JsonLdNode[] = [];
   const scripts = document.querySelectorAll<HTMLScriptElement>(
@@ -112,29 +114,9 @@ function readJsonLdProducts(): JsonLdNode[] {
     } catch {
       continue;
     }
-    walkJsonLd(parsed, out);
+    collectJsonLdProducts(parsed, out);
   }
   return out;
-}
-
-function walkJsonLd(node: unknown, out: JsonLdNode[], depth = 0): void {
-  if (!node || depth > 6) return;
-  if (Array.isArray(node)) {
-    for (const item of node) walkJsonLd(item, out, depth + 1);
-    return;
-  }
-  if (typeof node !== 'object') return;
-
-  const obj = node as JsonLdNode;
-  const type = obj['@type'];
-  const types = Array.isArray(type) ? type : [type];
-  if (types.some((t) => typeof t === 'string' && t.toLowerCase() === 'product')) {
-    out.push(obj);
-  }
-  // @graph and nested entities are common; keep walking.
-  for (const value of Object.values(obj)) {
-    if (value && typeof value === 'object') walkJsonLd(value, out, depth + 1);
-  }
 }
 
 function meta(property: string): string | null {
@@ -149,9 +131,8 @@ function meta(property: string): string | null {
 // ---------------------------------------------------------------------------
 
 function extractTitle(product: JsonLdNode | undefined): string {
-  const fromLd = typeof product?.name === 'string' ? product.name : null;
   const title =
-    fromLd ||
+    jsonLdName(product) ||
     meta('og:title') ||
     document.querySelector('h1')?.textContent ||
     document.title;
@@ -159,31 +140,18 @@ function extractTitle(product: JsonLdNode | undefined): string {
 }
 
 function extractBrand(product: JsonLdNode | undefined): string | null {
-  const brand = product?.brand;
-  if (typeof brand === 'string') return clean(brand);
-  if (brand && typeof brand === 'object') {
-    const name = (brand as JsonLdNode).name;
-    if (typeof name === 'string') return clean(name);
-  }
+  const fromLd = jsonLdBrand(product);
+  if (fromLd) return clean(fromLd);
   const og = meta('og:site_name');
   if (og) return clean(og);
   return null;
 }
 
 function extractPrice(product: JsonLdNode | undefined): Price | null {
-  const offers = product?.offers;
-  const offer = Array.isArray(offers) ? offers[0] : offers;
-  if (offer && typeof offer === 'object') {
-    const o = offer as JsonLdNode;
-    const amount = toNumber(o.price ?? o.lowPrice);
-    const currency =
-      typeof o.priceCurrency === 'string' ? o.priceCurrency : undefined;
-    if (amount != null) {
-      return {amount, currency: currency ?? guessCurrency() ?? 'GBP'};
-    }
-  }
+  const fromLd = jsonLdPrice(product, () => guessCurrency() ?? 'GBP');
+  if (fromLd) return fromLd;
 
-  const metaAmount = toNumber(meta('product:price:amount'));
+  const metaAmount = parseNumber(meta('product:price:amount'));
   if (metaAmount != null) {
     return {
       amount: metaAmount,
@@ -194,7 +162,7 @@ function extractPrice(product: JsonLdNode | undefined): Price | null {
   const itemprop = document.querySelector<HTMLMetaElement>(
     'meta[itemprop="price"]',
   );
-  const itempropAmount = toNumber(itemprop?.content);
+  const itempropAmount = parseNumber(itemprop?.content);
   if (itempropAmount != null) {
     return {
       amount: itempropAmount,
@@ -214,49 +182,12 @@ function extractPrice(product: JsonLdNode | undefined): Price | null {
   return null;
 }
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  '£': 'GBP',
-  $: 'USD',
-  '€': 'EUR',
-  '¥': 'JPY',
-  '₹': 'INR',
-  R: 'ZAR',
-};
-
-export function parsePriceText(text: string): Price | null {
-  const trimmed = clean(text);
-  if (!trimmed || trimmed.length > 40) return null;
-  const match = trimmed.match(
-    /([£$€¥₹]|R)\s?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)/,
-  );
-  if (!match) return null;
-  const amount = toNumber(match[2]);
-  if (amount == null) return null;
-  return {amount, currency: CURRENCY_SYMBOLS[match[1]] ?? 'GBP'};
-}
-
 function guessCurrency(): string | null {
   const text = document.body?.innerText?.slice(0, 4000) ?? '';
   for (const [symbol, code] of Object.entries(CURRENCY_SYMBOLS)) {
     if (symbol !== 'R' && text.includes(symbol)) return code;
   }
   return null;
-}
-
-function toNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value !== 'string') return null;
-  // Handle both 1.234,56 and 1,234.56.
-  let s = value.replace(/[^\d.,-]/g, '');
-  if (s.includes(',') && s.includes('.')) {
-    s = s.lastIndexOf(',') > s.lastIndexOf('.')
-      ? s.replace(/\./g, '').replace(',', '.')
-      : s.replace(/,/g, '');
-  } else if (s.includes(',')) {
-    s = /,\d{1,2}$/.test(s) ? s.replace(',', '.') : s.replace(/,/g, '');
-  }
-  const n = Number.parseFloat(s);
-  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -283,27 +214,6 @@ interface RawImage {
   /** Found inside the page's gallery, rather than anywhere on the page. */
   inGallery: boolean;
 }
-
-/**
- * Site furniture that turns up in the DOM sweep — nav tiles, promo banners,
- * badges. These are never the product.
- */
-const CHROME_WORDS = [
-  'navigation',
-  'nav_',
-  'banner',
-  'hero',
-  'logo',
-  'icon',
-  'sprite',
-  'placeholder',
-  'thumbnail-nav',
-  'payment',
-  'badge',
-  'promo',
-  'footer',
-  'header',
-];
 
 function collectImages(products: JsonLdNode[]): RawImage[] {
   const found = new Map<string, RawImage>();
@@ -341,17 +251,7 @@ function collectImages(products: JsonLdNode[]): RawImage[] {
   };
 
   for (const product of products) {
-    const image = product.image;
-    if (typeof image === 'string') add(image);
-    else if (Array.isArray(image)) {
-      for (const entry of image) {
-        if (typeof entry === 'string') add(entry);
-        else if (entry && typeof entry === 'object') {
-          const url = (entry as JsonLdNode).url ?? (entry as JsonLdNode).contentUrl;
-          if (typeof url === 'string') add(url);
-        }
-      }
-    }
+    for (const url of jsonLdImages(product)) add(url);
   }
 
   add(meta('og:image'));
@@ -513,7 +413,7 @@ export function rankImages(
       reasons.push("in the product's own gallery");
     }
 
-    if (CHROME_WORDS.some((w) => haystack.includes(w))) {
+    if (looksLikePageFurniture(haystack)) {
       // A navigation tile or promo banner is never the garment.
       score -= 6;
       reasons.push('page furniture, not the product');
@@ -555,83 +455,6 @@ function ratioFromUrl(url: string): number {
 
 /** Below this, we don't believe we found a usable on-model shot (§9.3). */
 export const ON_MODEL_THRESHOLD = 3;
-
-// ---------------------------------------------------------------------------
-// §9.4 Category inference
-// ---------------------------------------------------------------------------
-
-const CATEGORY_RULES: {category: GarmentCategory; words: string[]}[] = [
-  {
-    category: 'full_body',
-    words: [
-      'dress',
-      'jumpsuit',
-      'gown',
-      'romper',
-      'playsuit',
-      'overall',
-      'dungaree',
-      'co-ord',
-      'coord',
-      'suit',
-    ],
-  },
-  {
-    category: 'lower_body',
-    words: [
-      'trouser',
-      'pant',
-      'jean',
-      'short',
-      'skirt',
-      'legging',
-      'chino',
-      'cargo',
-      'jogger',
-      'culotte',
-      'slack',
-    ],
-  },
-  {
-    category: 'shoes',
-    words: [
-      'shoe',
-      'sneaker',
-      'trainer',
-      'boot',
-      'heel',
-      'sandal',
-      'loafer',
-      'derby',
-      'brogue',
-      'mule',
-      'clog',
-      'pump',
-      'slipper',
-      'espadrille',
-      'moccasin',
-      'plimsoll',
-      'flip flop',
-      'flip-flop',
-      'slider',
-      'wellington',
-    ],
-  },
-  {
-    category: 'bag',
-    words: ['bag', 'tote', 'backpack', 'clutch', 'purse', 'satchel', 'holdall'],
-  },
-  {category: 'hat', words: ['hat', 'cap', 'beanie', 'beret', 'bucket hat']},
-  {category: 'scarf', words: ['scarf', 'shawl', 'wrap', 'snood']},
-];
-
-export function inferCategory(text: string): GarmentCategory {
-  const haystack = text.toLowerCase();
-  for (const rule of CATEGORY_RULES) {
-    if (rule.words.some((word) => haystack.includes(word))) return rule.category;
-  }
-  return 'upper_body';
-}
 
 function breadcrumbText(): string {
   const nodes = document.querySelectorAll(

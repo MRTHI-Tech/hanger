@@ -201,8 +201,13 @@ in the one thing you just tried on — to WhatsApp, Instagram or Messages throug
 the phone's own share sheet, which is the one thing the side panel cannot do at
 all.
 
-Getting a screenshot from another app *in* is the phase after this one, and the
-app says so where it will go.
+Things get *in* from other apps too. On Android, Hanger is a share target:
+screenshot something in Instagram, tap Share, tap Hanger, and it lands on the
+"what is it?" screen. Share a shop link from anywhere and the server reads the
+page the extension would have read. iOS allows neither — Apple's share sheet is
+closed to web apps — so the same two routes sit on the Add sheet as "From your
+photos" and "Paste a link", which is one extra tap and the only way in on an
+iPhone.
 
 ```bash
 npm run dev:phone
@@ -271,6 +276,23 @@ npm run test:scrape --workspace extension
 | Passenger | Shopify | Full structured data |
 | Percival (t-shirt + trousers) | Shopify | Lower-body on-model requirement |
 | Allbirds | Shopify | Shoes category inference |
+
+The server reads the same nine pages, without a browser, for the phone's "paste
+a link" route:
+
+```bash
+npm run test:links --workspace server
+```
+
+Eight of the nine are hangable from the markup alone — right title, right
+category, and the right price wherever the served HTML carries one. The ninth is
+Gap, whose page is an empty app shell; the extension can't read that either, and
+both routes send you to the camera instead. To point it at a live page rather
+than a saved one:
+
+```bash
+npx tsx scripts/read-link.ts https://someshop.com/product/thing
+```
 
 Two caveats worth stating plainly:
 
@@ -349,6 +371,11 @@ exercised against the live APIs, not just against mock mode:
   product links, real prices.
 - **Two accounts on one server**, each with their own photo and their own
   wardrobe.
+- **Reading a link server-side** — live pages from Uniqlo, Allbirds, Gap,
+  Superbalist and H&M, on top of the nine saved fixtures. Two of those five
+  taught us something: Allbirds hands back its own logo as `og:image` on a stale
+  product URL, and H&M refuses a server-side fetch outright with a 403. Both are
+  handled, the second by saying so and offering the camera.
 
 `GET /health` reports what has been spent. The numbers in `spend_log` are the
 audit trail; nothing here is inferred from the code.
@@ -370,6 +397,16 @@ audit trail; nothing here is inferred from the code.
   per-match keys so a future change announces itself instead of quietly
   returning an empty list. See the `_provenance` block in
   `server/fixtures/serpapi-google-lens.json`.
+- **A shared screenshot isn't identified, it's asked about.** The plan was to
+  run it through the Lens integration; that engine takes a URL and fetches the
+  image itself, and a picture out of somebody's camera roll has no public URL to
+  give it. So a shared picture lands on the same "what is it?" screen a
+  photographed one does. Links, which carry their own details, fill themselves
+  in.
+- **Some shops can't be read from a link.** Pages built entirely in the browser
+  (Gap) carry nothing in their served HTML, and shops behind bot protection
+  (H&M) answer a server-side fetch with 403. Both end in a sentence and the
+  camera, never a spinner.
 - **It runs on a laptop.** `render.yaml` is written but nothing is deployed, so
   the phone still needs the laptop switched on and on the same Wi-Fi, and the
   extension still points at `localhost:8787`.

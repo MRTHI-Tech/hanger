@@ -11,6 +11,7 @@
     "./imageChecks": "./src/imageChecks.ts",
     "./guides": "./src/guides/index.ts",
     "./text": "./src/text.ts",
+    "./product": "./src/product.ts",
     "./theme": "./src/theme/butterTheme.ts",
     "./illustrations": "./src/illustrations/pose.tsx",
     "./scripts/icon.mjs": "./scripts/icon.mjs"

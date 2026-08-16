@@ -14,6 +14,7 @@ import {garmentRoutes} from './routes/garments.js';
 import {tryonRoutes} from './routes/tryon.js';
 import {outfitRoutes} from './routes/outfits.js';
 import {alternativeRoutes} from './routes/alternatives.js';
+import {linkRoutes} from './routes/links.js';
 import {handoffRoutes} from './routes/handoff.js';
 import {pairingRoutes} from './routes/pairing.js';
 import {devRoutes} from './routes/dev.js';
@@ -128,12 +129,14 @@ app.use('/outfits/*', requireUser);
 app.use('/outfits', requireUser);
 app.use('/alternatives/*', requireUser);
 app.use('/alternatives', requireUser);
+app.use('/links/*', requireUser);
 
 app.route('/person', personRoutes);
 app.route('/garments', garmentRoutes);
 app.route('/tryon', tryonRoutes);
 app.route('/outfits', outfitRoutes);
 app.route('/alternatives', alternativeRoutes);
+app.route('/links', linkRoutes);
 if (mockMode) app.route('/dev', devRoutes);
 
 /**

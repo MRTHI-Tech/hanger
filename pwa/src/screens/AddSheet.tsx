@@ -9,28 +9,35 @@ import {Sheet} from '../components/Sheet';
 /**
  * The three ways something gets onto the hanger from a phone.
  *
- * The first one works. The other two say which phase brings them rather than
- * pretending to be buttons — the shape of all three was worth judging before
- * any of it was built, and the two that are still coming keep earning their
- * place on the sheet by being the reason the first one isn't the only way in.
+ * All three work now. The shape of the sheet is unchanged from when two of them
+ * were promises, which was the point of drawing it that way: the routes were
+ * worth judging as a set before any of them existed, and none of them turned
+ * out to be wrong once built.
+ *
+ * On Android the second and third also arrive from outside the app entirely —
+ * shared in from Instagram or WhatsApp, landing on the same two screens without
+ * anybody opening this sheet. iOS has no way to offer that, which is exactly
+ * why they are here as their own routes rather than only as share handlers.
  */
 export function AddSheet({
   isOpen,
   onClose,
   onPhotograph,
+  onFromPhotos,
+  onPasteLink,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onPhotograph: () => void;
+  onFromPhotos: () => void;
+  onPasteLink: () => void;
 }) {
   return (
     <Sheet title="Add to your hanger" isOpen={isOpen} onClose={onClose}>
       <VStack gap={4}>
         <VStack gap={1}>
           <Heading level={3}>Add to your hanger</Heading>
-          <Text type="supporting">
-            Three ways in. One of them works today.
-          </Text>
+          <Text type="supporting">Three ways in.</Text>
         </VStack>
 
         <VStack gap={2}>
@@ -43,14 +50,14 @@ export function AddSheet({
           <Route
             icon={<Image size={22} aria-hidden />}
             title="From your photos"
-            description="A screenshot from Instagram, or a picture someone sent you. We'll work out what it is."
-            phase="Phase 8"
+            description="A screenshot from Instagram, or a picture someone sent you."
+            onClick={onFromPhotos}
           />
           <Route
             icon={<Link2 size={22} aria-hidden />}
             title="Paste a link"
             description="A product page you found on your phone, read the same way the laptop reads one."
-            phase="Phase 8"
+            onClick={onPasteLink}
           />
         </VStack>
       </VStack>
@@ -59,24 +66,21 @@ export function AddSheet({
 }
 
 /**
- * One route in. With an `onClick` it's a button; with a `phase` it's a
- * description of one that's coming, and deliberately not tappable — a card that
- * looks pressable and does nothing is worse than one that says why.
+ * One route in. Two of these used to carry a phase label instead of a handler,
+ * and deliberately weren't tappable — a card that looks pressable and does
+ * nothing is worse than one that says why. Nothing needs saying now.
  */
 function Route({
   icon,
   title,
   description,
-  phase,
   onClick,
 }: {
   icon: ReactNode;
   title: string;
   description: string;
-  phase?: string;
-  onClick?: () => void;
+  onClick: () => void;
 }) {
-  const live = onClick != null;
   const body = (
     <HStack gap={3} vAlign="start" width="100%">
       <div
@@ -89,36 +93,18 @@ function Route({
           height: '2.5rem',
           flexShrink: 0,
           borderRadius: 'var(--radius-full)',
-          backgroundColor: live
-            ? 'var(--color-accent-muted)'
-            : 'var(--color-background-body)',
+          backgroundColor: 'var(--color-accent-muted)',
           border: '1px solid var(--color-border)',
           color: 'var(--color-accent)',
         }}>
         {icon}
       </div>
       <VStack gap={0.5}>
-        <HStack gap={2} vAlign="center">
-          <Text type="label">{title}</Text>
-          {phase && <Text type="supporting">{phase}</Text>}
-        </HStack>
+        <Text type="label">{title}</Text>
         <Text type="supporting">{description}</Text>
       </VStack>
     </HStack>
   );
-
-  const skin = {
-    padding: '0.875rem',
-    borderRadius: 'var(--radius-container)',
-    border: `1px solid ${
-      live ? 'var(--color-border-emphasized)' : 'var(--color-border)'
-    }`,
-    backgroundColor: live
-      ? 'var(--color-background-body)'
-      : 'var(--color-background-muted)',
-  } as const;
-
-  if (!live) return <div style={skin}>{body}</div>;
 
   return (
     <button
@@ -126,7 +112,10 @@ function Route({
       onClick={onClick}
       className="w-full"
       style={{
-        ...skin,
+        padding: '0.875rem',
+        borderRadius: 'var(--radius-container)',
+        border: '1px solid var(--color-border-emphasized)',
+        backgroundColor: 'var(--color-background-body)',
         textAlign: 'left',
         font: 'inherit',
         color: 'inherit',

@@ -566,24 +566,80 @@ build that a laptop cannot run on your behalf.
 
 ---
 
-## Phase 8 — Share in
+## Phase 8 — Share in — **done**
 
-A screenshot from another app becomes a garment.
+A screenshot from another app becomes a garment. So does a link.
 
-**Android:** register as a share target. Screenshot in Instagram → Share → Hanger. Works
-properly.
+**Android:** registered as a share target. Screenshot in Instagram → Share → Hanger.
+Works properly, and it is the platform's own mechanism rather than anything clever: the
+manifest declares `share_target`, the browser posts the image to `/share-target`, and
+there is no server on that origin to receive it — so the service worker answers the POST
+itself, parks the picture in a cache and redirects to the app. The redirect has to be a
+303 or the browser repeats the POST against the page it lands on.
 
-**iPhone:** Apple does not let web apps into the share sheet. Not a thing we can build
-around. The fallback is opening Hanger and picking the screenshot from the photo roll —
-one extra tap — with an optional Apple Shortcut for people who want the real thing.
+**iPhone:** Apple does not let web apps into the share sheet. Nothing to build around, no
+entitlement to ask for. So the iPhone route is the other way round — open Hanger, pick the
+screenshot out of the photo roll — which is one extra tap. That is why "From your photos"
+is its own route on the Add sheet rather than only a fallback for a failed share: on iOS
+it is the only way in, and it has to look like a way in rather than an apology.
 
-Either way the screenshot arrives with no title, no price, no URL. Run it through the
-Google Lens integration already built for alternatives (`§5.5`, `§10`) to guess what it
-is, and let the user correct it.
+### What identifies it: nothing, deliberately
 
-Done when: a screenshot becomes a hanger entry with its details mostly filled in.
+The plan was to run the screenshot through the Lens integration built for alternatives
+(§5.5, §10) and guess what it is. **That was dropped, and the reason is worth recording:
+SerpApi's Lens engine takes a URL, not an upload.** It has to fetch the image itself. A
+screenshot out of somebody's camera roll has no public URL — it would have to be uploaded
+and served publicly first, which means the feature only works once the server is deployed
+and would identify nothing on a laptop. Everything else in this build works locally.
 
-**~1.5 days**, split roughly evenly between the two platforms and the identification.
+So a shared picture goes to the same "what is it?" screen a photographed one does. Two
+fields, both already written. The screenshot arrives, gets checked like any other photo,
+and somebody says what it is — which they had to confirm anyway.
+
+### Links, which turned out to be the bigger half
+
+The Add sheet always had a third route, promised for this phase: paste a link. It is the
+one that matters most on a phone, because it is the case with no laptop in it — a friend
+sends a shop link in WhatsApp, and until now the answer was "open this on your computer".
+
+`server/src/productPage.ts` reads a product page with no browser anywhere: JSON-LD,
+OpenGraph, microdata, the same `@hanger/shared/product` helpers the content script reads
+them with. What it gives up is the on-model ranking (§9.3) — with nothing to measure and
+no pixels to sample, choosing between forty images would be guessing — so it takes the
+picture the shop nominated for sharing, which is chosen by the retailer to represent the
+product and is very often the on-model shot.
+
+Run against the nine real shop pages the extension's scraper is tested on
+(`npm run test:links --workspace server`), **eight are hangable from the markup alone**,
+with the right price and the right category. The ninth is Gap, which serves an empty app
+shell — the extension can't read it either, and both send you to the camera.
+
+Two things the live run taught that the fixtures didn't:
+
+- **`og:image` is sometimes the shop's logo.** Allbirds answers a stale product URL with
+  its own wordmark, and "hang it" would have put a logo in somebody's wardrobe. Page
+  furniture is filtered by name now, which is knowledge the extension already had (§9.3)
+  and now shares.
+- **Titles carry the shop's name** — "Oxford Slim Shirt | UNIQLO US". Harmless on a shop
+  page, silly on a hanger where the retailer is a field of its own.
+
+And one that isn't fixable: **H&M answers a server-side fetch with 403.** Bot protection
+refuses anything without a browser session, and no amount of headers changes that
+honestly. It fails with a sentence and the camera as the way out.
+
+### Reading a stranger's URL, safely
+
+The server now fetches addresses that somebody else chose, which is the classic way to
+turn a public API into a probe of the private network behind it. Every hop is resolved and
+checked against loopback, link-local, private and unique-local ranges — every hop, not
+just the first, because a public hostname redirecting to `169.254.169.254` is the whole
+attack. Refusals say "that doesn't look like a link we can open" rather than "that address
+is private", which would confirm the probe for whoever was probing.
+
+Done when: a screenshot becomes a hanger entry, and a link becomes one with its details
+already filled in.
+
+**~1.5 days.**
 
 ---
 
@@ -603,7 +659,7 @@ stopped being the last thing once it turned out everything after it writes data.
 | Hang from a shop | + Phase 5, **~10.5 days** ✅ |
 | Try on, build an outfit, make the video | + Phase 6, **~11.5 days** ✅ |
 | Share to WhatsApp | + Phase 7, **~12 days** ✅ |
-| Everything, screenshots included | + Phase 8, **~13.5 days** |
+| Everything, screenshots and links included | + Phase 8, **~13.5 days** ✅ |
 
 Call it **two and a half weeks** at the pace of the last few days, for something a
 stranger can sign into and use. Phase 4 is the expensive one and it moved to the front on

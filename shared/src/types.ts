@@ -271,6 +271,33 @@ export interface ScrapedProduct {
   lowerBodyWarning: boolean;
 }
 
+/**
+ * What the server could read off a product page it was only handed a link to.
+ *
+ * The thinner cousin of `ScrapedProduct`, and thinner on purpose: the content
+ * script has a rendered page, so it can measure every image and rank them on
+ * model (§9.3). The server has markup and no browser, so it takes the picture
+ * the shop nominated for sharing and offers nothing it cannot stand behind.
+ */
+export interface LinkPreview {
+  title: string;
+  brand: string | null;
+  retailer: string;
+  /** Where the link landed after redirects — the address that was actually read. */
+  productUrl: string;
+  price: Price | null;
+  /** A guess (§9.4). Always shown as editable; never applied silently. */
+  category: GarmentCategory;
+  /** The shop's own picture of it. Null when the page had none we could use. */
+  imageUrl: string | null;
+  /**
+   * False when the page had none of the §9.1 marks of a product page — a
+   * homepage, a category listing, an article. Worth saying out loud rather
+   * than refusing: shops publish stranger markup than any rule allows for.
+   */
+  looksLikeProduct: boolean;
+}
+
 export interface ApiError {
   error: {code: string; message: string; hint?: string};
 }

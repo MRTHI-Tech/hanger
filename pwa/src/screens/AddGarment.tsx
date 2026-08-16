@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {VStack} from '@astryxdesign/core/VStack';
 import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
@@ -11,13 +11,9 @@ import {TextInput} from '@astryxdesign/core/TextInput';
 import {api} from '@hanger/shared/api';
 import {checkGarmentPhoto} from '@hanger/shared/imageChecks';
 import {GarmentGuide} from '@hanger/shared/guides';
-import {
-  CATEGORY_LABELS,
-  OWNABLE,
-  type Garment,
-  type TryOnCategory,
-} from '@hanger/shared/types';
-import {PhotoPick} from '../components/PhotoPick';
+import {OWNABLE, type Garment, type TryOnCategory} from '@hanger/shared/types';
+import {PhotoPick, preparePhoto} from '../components/PhotoPick';
+import {CategoryPick} from '../components/CategoryPick';
 import {ErrorNote} from '../components/ErrorNote';
 
 type Stage = 'photo' | 'checking' | 'details' | 'saving';
@@ -50,13 +46,23 @@ const PLACEHOLDERS: Record<TryOnCategory, string> = {
  * to type is how you get a form nobody finishes.
  */
 export function AddGarment({
+  initialPhoto = null,
+  prefer = 'camera',
   onHung,
   onCancel,
 }: {
+  /**
+   * A picture that arrived without being asked for — shared in from another
+   * app (§Phase 8). It still faces every check a photograph taken here would,
+   * because a screenshot is exactly the sort of image that fails them.
+   */
+  initialPhoto?: File | null;
+  /** Which way in this was reached by; decides the loud button, nothing else. */
+  prefer?: 'camera' | 'roll';
   onHung: (garment: Garment) => void;
   onCancel: () => void;
 }) {
-  const [stage, setStage] = useState<Stage>('photo');
+  const [stage, setStage] = useState<Stage>(initialPhoto ? 'checking' : 'photo');
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [category, setCategory] = useState<TryOnCategory | null>(null);
@@ -75,6 +81,25 @@ export function AddGarment({
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [photo]);
+
+  // A shared picture, checked once on arrival. The guard is the same one the
+  // try-on needs: StrictMode invokes effects twice in development, and this
+  // would otherwise check the screenshot twice and race the two answers.
+  const hasChecked = useRef(false);
+  useEffect(() => {
+    if (!initialPhoto || hasChecked.current) return;
+    hasChecked.current = true;
+    void (async () => {
+      const result = await preparePhoto(initialPhoto, checkGarmentPhoto);
+      if (result.ok) {
+        setPhoto(result.photo);
+        setStage('details');
+      } else {
+        setProblem(result.problem);
+        setStage('photo');
+      }
+    })();
+  }, [initialPhoto]);
 
   async function hang() {
     if (!photo || !category) return;
@@ -143,17 +168,12 @@ export function AddGarment({
           />
         )}
 
-        <div className="grid grid-cols-2 gap-2">
-          {OWNABLE.map((option) => (
-            <CategoryOption
-              key={option}
-              label={CATEGORY_LABELS[option]}
-              isActive={category === option}
-              isDisabled={busy}
-              onClick={() => setCategory(option)}
-            />
-          ))}
-        </div>
+        <CategoryPick
+          categories={OWNABLE}
+          value={category}
+          onChange={(next) => setCategory(next as TryOnCategory)}
+          isDisabled={busy}
+        />
 
         <TextInput
           label="Name it"
@@ -196,10 +216,11 @@ export function AddGarment({
   return (
     <VStack padding={4} gap={4}>
       <VStack gap={1}>
-        <Heading level={2}>Photograph it</Heading>
+        <Heading level={2}>{prefer === 'roll' ? 'Pick a picture' : 'Photograph it'}</Heading>
         <Text type="supporting">
-          One piece, filling the frame. It hangs beside everything you've kept
-          from a shop, and chains with it.
+          {prefer === 'roll'
+            ? "A screenshot, or a photo someone sent you. One piece, filling the frame — it hangs beside everything you've kept from a shop."
+            : "One piece, filling the frame. It hangs beside everything you've kept from a shop, and chains with it."}
         </Text>
       </VStack>
 
@@ -221,6 +242,7 @@ export function AddGarment({
         facing="environment"
         cameraLabel="Take a photo"
         rollLabel="Choose from photos"
+        prefer={prefer}
         check={checkGarmentPhoto}
         onStart={() => {
           setProblem(null);
@@ -242,40 +264,3 @@ export function AddGarment({
   );
 }
 
-function CategoryOption({
-  label,
-  isActive,
-  isDisabled,
-  onClick,
-}: {
-  label: string;
-  isActive: boolean;
-  isDisabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={isDisabled}
-      aria-pressed={isActive}
-      className="w-full rounded-xl px-3"
-      style={{
-        border: `1px solid ${
-          isActive ? 'var(--color-accent)' : 'var(--color-border)'
-        }`,
-        backgroundColor: isActive
-          ? 'var(--color-accent-muted)'
-          : 'transparent',
-        color: 'var(--color-text-primary)',
-        font: 'inherit',
-        fontSize: 'var(--font-size-sm)',
-        // A thumb target, not a mouse one: 44px is the floor on both platforms.
-        minHeight: '2.75rem',
-        cursor: isDisabled ? 'default' : 'pointer',
-        opacity: isDisabled ? 0.6 : 1,
-      }}>
-      {label}
-    </button>
-  );
-}

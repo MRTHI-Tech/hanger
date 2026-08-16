@@ -452,6 +452,8 @@ All JSON unless noted. All errors return `{ error: { code, message, hint? } }` w
 | `DELETE` | `/outfits/:id` | |
 | `GET` | `/alternatives?garmentId=` | Cached-then-live SerpApi lookup (§10). Returns items sorted cheapest-first, with `savingsVsOriginal`. |
 | `POST` | `/alternatives/:id/save` | Save an alternative into the wardrobe as a real garment (downloads its image, uploads to YouCam). Enables "try on the cheaper one". |
+| `POST` | `/links/read` | `{ url }` → what a product page says about itself, read server-side (§9.2, no DOM). Creates nothing; the answer is for a person to check. |
+| `POST` | `/links/hang` | The confirmed reading. Downloads the shop's picture and stores it as a garment. |
 | `GET` | `/media/:path` | Serve stored images. |
 
 ---

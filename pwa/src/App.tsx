@@ -4,6 +4,7 @@ import {HStack} from '@astryxdesign/core/HStack';
 import {Text} from '@astryxdesign/core/Text';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Badge} from '@astryxdesign/core/Badge';
+import {Banner} from '@astryxdesign/core/Banner';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {Card} from '@astryxdesign/core/Card';
 import {
@@ -23,12 +24,14 @@ import {OutfitDetail} from './screens/OutfitDetail';
 import {Me} from './screens/Me';
 import {AddSheet} from './screens/AddSheet';
 import {AddGarment} from './screens/AddGarment';
+import {AddLink} from './screens/AddLink';
 import {Pair} from './screens/Pair';
 import {RequireSignIn} from './auth';
 import {ErrorNote} from './components/ErrorNote';
 import {TabBar, type Tab} from './components/TabBar';
 import {serverUrl} from './server';
 import {rememberToken} from './device';
+import {takeShared} from './shareIn';
 
 /**
  * Hanger on the phone.
@@ -62,7 +65,14 @@ function Wardrobe() {
   const [tab, setTab] = useState<Tab>('hanger');
   const [openOutfit, setOpenOutfit] = useState<Outfit | null>(null);
   const [adding, setAdding] = useState(false);
-  const [hanging, setHanging] = useState(false);
+  // Null when it isn't open. Otherwise: which way in it was reached by, and a
+  // picture if one arrived without being asked for (shared in from another app).
+  const [hanging, setHanging] = useState<{
+    photo: File | null;
+    prefer: 'camera' | 'roll';
+  } | null>(null);
+  const [linking, setLinking] = useState<{url: string} | null>(null);
+  const [sharedProblem, setSharedProblem] = useState<string | null>(null);
   const [tryingOn, setTryingOn] = useState<Garment | null>(null);
   const [building, setBuilding] = useState(false);
   const [outfitsVersion, setOutfitsVersion] = useState(0);
@@ -103,6 +113,26 @@ function Wardrobe() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Opened by another app sharing something in. Runs once, before anything is
+   * loaded — whatever arrived is the reason the app is open at all, so it goes
+   * straight to the screen that can do something with it rather than waiting
+   * behind a hanger nobody asked to see.
+   */
+  useEffect(() => {
+    void (async () => {
+      const shared = await takeShared();
+      if (!shared) return;
+      if (shared.kind === 'photo') setHanging({photo: shared.file, prefer: 'roll'});
+      else if (shared.kind === 'link') setLinking({url: shared.url});
+      else {
+        setSharedProblem(
+          "That didn't arrive as anything we can hang. A picture or a shop link both work.",
+        );
+      }
+    })();
+  }, []);
 
   // A token revoked from the laptop while the phone was in a pocket. Whichever
   // screen finds out, the answer is the same: forget it and ask again.
@@ -212,12 +242,36 @@ function Wardrobe() {
     return (
       <Shell health={health} person={person}>
         <AddGarment
+          initialPhoto={hanging.photo}
+          prefer={hanging.prefer}
           onHung={() => {
-            setHanging(false);
+            setHanging(null);
             setTab('hanger');
             setHangerVersion((v) => v + 1);
           }}
-          onCancel={() => setHanging(false)}
+          onCancel={() => setHanging(null)}
+        />
+      </Shell>
+    );
+  }
+
+  if (linking) {
+    return (
+      <Shell health={health} person={person}>
+        <AddLink
+          initialUrl={linking.url}
+          onHung={() => {
+            setLinking(null);
+            setTab('hanger');
+            setHangerVersion((v) => v + 1);
+          }}
+          // A page with no picture on it is still a garment you own or can
+          // photograph, so the way out of that dead end is the camera.
+          onPhotograph={() => {
+            setLinking(null);
+            setHanging({photo: null, prefer: 'camera'});
+          }}
+          onCancel={() => setLinking(null)}
         />
       </Shell>
     );
@@ -237,6 +291,18 @@ function Wardrobe() {
           onAdd={() => setAdding(true)}
         />
       }>
+      {sharedProblem && (
+        <div style={{padding: 'var(--spacing-4)', paddingBottom: 0}}>
+          <Banner
+            status="warning"
+            title="Nothing to hang in that"
+            description={sharedProblem}
+            isDismissable
+            onDismiss={() => setSharedProblem(null)}
+          />
+        </div>
+      )}
+
       {tab === 'hanger' && (
         <Hanger
           key={hangerVersion}
@@ -279,7 +345,15 @@ function Wardrobe() {
         onClose={() => setAdding(false)}
         onPhotograph={() => {
           setAdding(false);
-          setHanging(true);
+          setHanging({photo: null, prefer: 'camera'});
+        }}
+        onFromPhotos={() => {
+          setAdding(false);
+          setHanging({photo: null, prefer: 'roll'});
+        }}
+        onPasteLink={() => {
+          setAdding(false);
+          setLinking({url: ''});
         }}
       />
     </Shell>

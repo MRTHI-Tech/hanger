@@ -27,10 +27,35 @@ import {normalisePhoto, type CheckResult} from '@hanger/shared/imageChecks';
  * Every photo goes through `normalisePhoto` before it is checked, because a
  * phone camera routinely shoots past the limits the checks enforce.
  */
+/**
+ * Everything that happens to a picture between arriving and being usable.
+ *
+ * Exported because pictures now arrive from somewhere with no buttons at all:
+ * another app shares one in (`shareIn.ts`), and it has to face the same checks
+ * as one somebody chose here. A screenshot is exactly the kind of image that
+ * fails them — cropped, scaled down, a phone's status bar across the top — so
+ * the one path that decides "is this photograph usable" is not one to have two
+ * copies of.
+ */
+export async function preparePhoto(
+  candidate: File,
+  check: (file: File) => Promise<CheckResult>,
+): Promise<
+  {ok: true; photo: File; warnings: string[]} | {ok: false; problem: string}
+> {
+  const photo = await normalisePhoto(candidate);
+  const result = await check(photo);
+  if (!result.ok) {
+    return {ok: false, problem: result.problem ?? "That photo won't work."};
+  }
+  return {ok: true, photo, warnings: result.warnings};
+}
+
 export function PhotoPick({
   facing = 'environment',
   cameraLabel = 'Take a photo',
   rollLabel = 'Choose from photos',
+  prefer = 'camera',
   check,
   onStart,
   onPhoto,
@@ -41,6 +66,16 @@ export function PhotoPick({
   facing?: 'user' | 'environment';
   cameraLabel?: string;
   rollLabel?: string;
+  /**
+   * Which way in the screen was reached by. Both are always offered — this
+   * only decides which one is the loud one, because somebody who tapped "From
+   * your photos" has already said which they meant.
+   *
+   * The picker deliberately isn't opened for them: a file input can only be
+   * opened inside the tap that asked for it, and the tap that asked was on a
+   * different screen.
+   */
+  prefer?: 'camera' | 'roll';
   /** `checkPersonPhoto` or `checkGarmentPhoto`; the caller picks. */
   check: (file: File) => Promise<CheckResult>;
   /** Fired the moment a file arrives, before the work — for a spinner. */
@@ -54,13 +89,12 @@ export function PhotoPick({
 
   async function accept(candidate: File) {
     onStart();
-    const photo = await normalisePhoto(candidate);
-    const result = await check(photo);
+    const result = await preparePhoto(candidate, check);
     if (!result.ok) {
-      onProblem(result.problem ?? "That photo won't work.");
+      onProblem(result.problem);
       return;
     }
-    onPhoto(photo, result.warnings);
+    onPhoto(result.photo, result.warnings);
   }
 
   /** Clearing the value first: picking the same file twice must re-fire. */
@@ -87,18 +121,37 @@ export function PhotoPick({
         className="hidden"
         onChange={onChange}
       />
-      <Button
-        label={cameraLabel}
-        variant="primary"
-        isDisabled={isDisabled}
-        onClick={() => camera.current?.click()}
-      />
-      <Button
-        label={rollLabel}
-        variant="secondary"
-        isDisabled={isDisabled}
-        onClick={() => roll.current?.click()}
-      />
+      {prefer === 'roll' ? (
+        <>
+          <Button
+            label={rollLabel}
+            variant="primary"
+            isDisabled={isDisabled}
+            onClick={() => roll.current?.click()}
+          />
+          <Button
+            label={cameraLabel}
+            variant="secondary"
+            isDisabled={isDisabled}
+            onClick={() => camera.current?.click()}
+          />
+        </>
+      ) : (
+        <>
+          <Button
+            label={cameraLabel}
+            variant="primary"
+            isDisabled={isDisabled}
+            onClick={() => camera.current?.click()}
+          />
+          <Button
+            label={rollLabel}
+            variant="secondary"
+            isDisabled={isDisabled}
+            onClick={() => roll.current?.click()}
+          />
+        </>
+      )}
     </VStack>
   );
 }

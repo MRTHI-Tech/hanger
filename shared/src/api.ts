@@ -4,6 +4,7 @@ import type {
   Garment,
   GarmentCategory,
   Health,
+  LinkPreview,
   Outfit,
   OutfitSlot,
   Person,
@@ -207,6 +208,34 @@ export const api = {
       type: blob.type || 'image/jpeg',
     });
   },
+
+  /**
+   * Read a shop link — pasted, or shared in from another app. Comes back for a
+   * person to check before anything is kept: the category is a guess made out
+   * of words in a title (§9.4), and it decides where a try-on fits.
+   */
+  readLink: (url: string) =>
+    request<LinkPreview>('/links/read', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    }),
+
+  /** The link, as confirmed. The server fetches the picture and hangs it. */
+  hangLink: (preview: LinkPreview & {imageUrl: string}) =>
+    request<Garment>('/links/hang', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        productUrl: preview.productUrl,
+        imageUrl: preview.imageUrl,
+        title: preview.title,
+        brand: preview.brand,
+        retailer: preview.retailer,
+        price: preview.price,
+        category: preview.category,
+      }),
+    }),
 
   /** "Hang it" — keep this garment in Your Hanger. */
   hangGarment: (id: string) =>

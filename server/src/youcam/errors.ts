@@ -130,6 +130,34 @@ const MAP: Record<string, {message: string; hint?: string; status?: ContentfulSt
     hint: 'Open the product page',
     status: 422,
   },
+  link_not_public: {
+    // Also the answer when a link resolves to a private address. Deliberately
+    // the same sentence as a link we simply can't use: "that address is inside
+    // your network" would confirm the probe for whoever was probing.
+    message: "That doesn't look like a link we can open.",
+    hint: 'Paste a product page link',
+    status: 400,
+  },
+  link_unreadable: {
+    message: "We couldn't open that page. The shop didn't answer, or it wouldn't let us in.",
+    hint: 'Photograph it instead',
+    status: 502,
+  },
+  link_not_a_page: {
+    message: "That link isn't a web page — it points straight at a file.",
+    hint: 'Paste a product page link',
+    status: 400,
+  },
+  link_no_image: {
+    message: "We read that page, but it doesn't publish a picture we can hang.",
+    hint: 'Photograph it instead',
+    status: 422,
+  },
+  link_image_unusable: {
+    message: "That shop's picture is too small to try on.",
+    hint: 'Photograph it instead',
+    status: 422,
+  },
   image_unreadable: {
     message: "We couldn't read that image file. Try a JPG or PNG.",
     hint: 'Pick another photo',
