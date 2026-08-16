@@ -12,10 +12,9 @@ combine pieces from different shops into a single outfit image.
 Built for the **YouCam API Skin AI & Apparel VTO Hackathon**, Apparel Virtual
 Try-On track.
 
-<!-- SCREENSHOT: hero.png. The side panel open beside a real product page,
-     showing a try-on result. Landscape, about 1600px wide. See docs/ASSETS.md. -->
+![One outfit, three shops. A top from Superbalist, trousers from Bash and shoes from Zara, worn in a single image, with a price for each and a total.](docs/assets/hero.png)
 
-![Hanger, with the side panel open on a shop's product page](docs/assets/hero.png)
+*A top from one shop, trousers from another, shoes from a third. One image, one total.*
 
 </div>
 
@@ -25,6 +24,7 @@ Try-On track.
 
 - [The problem](#the-problem)
 - [What Hanger is](#what-hanger-is)
+- [What it looks like](#what-it-looks-like)
 - [**For judges: testing it**](#for-judges-testing-it) (start here)
 - [How it works](#how-it-works)
 - [Two apps, one wardrobe](#two-apps-one-wardrobe)
@@ -66,15 +66,19 @@ one of them.
 A Chrome extension, a phone app, and one small server that both of them share.
 Four things it does:
 
-<!-- SCREENSHOT: four screenshots, one per row below. Each about 800px wide and
-     portrait, since the panel is narrow. See docs/ASSETS.md. -->
+**1. Try on.** One saved photo, then any garment on any shop, without leaving the
+page. No account with the retailer, no uploading your photo again on every site.
 
-|  | | |
-|---|---|---|
-| **1. Try on** | One saved photo, then any garment on any shop, without leaving the page. No account with the retailer, no uploading your photo again on every site. | ![Try-on](docs/assets/tryon.png) |
-| **2. Your Hanger** | Keep a garment from anywhere in one place. A Uniqlo tee and a Zara jacket sit next to each other, each with its own price and its own shop. | ![Your Hanger](docs/assets/hanger.png) |
-| **3. Outfits** | A top from one shop, trousers from another, shoes from a third, all composed into **one image**, with a shopping list and a total. | ![Outfit](docs/assets/outfit.png) |
-| **4. Alternatives** | Search for the same garment elsewhere by its picture, cheapest first, and try those on too. | ![Alternatives](docs/assets/alternatives.png) |
+**2. Your Hanger.** Keep a garment from anywhere in one place. A Mango blouse
+from Superbalist and a pair of Zara heels sit next to each other, each with its
+own price and its own shop.
+
+**3. Outfits.** A top from one shop, trousers from another, shoes from a third,
+all composed into **one image**, with a shopping list and a total.
+
+**4. Alternatives.** Search for the same garment elsewhere by its picture,
+cheapest first, and try those on too. A R2,199.95 sneaker turning up for R1,540
+somewhere else is a real result, not a mocked one.
 
 The verb is **"Hang it"**, never "save" or "add to wishlist". The collection is
 **"Your Hanger"**. That vocabulary is deliberate and it stays consistent
@@ -85,6 +89,63 @@ everywhere in the product.
 Point three is the one that doesn't exist anywhere else. **A single image of you
 wearing clothes that are for sale in three different shops** is something no
 retailer can build and no retailer wants to.
+
+---
+
+## What it looks like
+
+### One wardrobe, three shops
+
+![Your Hanger showing three garments, each labelled with the shop it came from: zara.com R999, bash.com R419.40, superbalist.com R799](docs/assets/hanger.png)
+
+Every piece keeps the shop it came from, its own price and a link back. Nothing
+here is one retailer's catalogue.
+
+### Building the outfit
+
+![The Build an outfit screen, with slots for Top, Layer, Bottom and Shoes, each filled from a different shop](docs/assets/outfit-builder.png)
+
+Slots rather than a canvas, because clothes go on in an order and the try-on
+fits them one at a time. The three filled slots name three different shops. The
+empty Layer slot is there for a jacket over the top.
+
+### Trying something on, in place
+
+![The panel on a Superbalist product page, showing the row of the page's photos with the best one picked, and a guess at what the garment is](docs/assets/tryon.png)
+
+The panel reads the page for you. It picks the photo most likely to show the
+garment on a person, guesses the category, and says so plainly enough that you
+can correct it.
+
+### The same thing, cheaper somewhere else
+
+![The alternatives panel on a Bash product page, showing five cheaper versions of the same Nike sneaker from other shops, each with how much is saved](docs/assets/alternatives.png)
+
+A R2,199.95 sneaker on one shop, found for R1,540 on another. The search runs on
+the picture rather than the name, which is why it finds the same shoe at Sneaker
+Heads Johannesburg and DropOrCop rather than five unrelated white trainers. Each
+one can be tried on before you decide.
+
+### The same thing, on somebody else's site
+
+![Two browser windows side by side, one on Superbalist and one on Bash, each with the Hanger panel open](docs/assets/two-shops.png)
+
+There is no special code for individual shops. The same reader runs on all of
+them.
+
+### On your phone
+
+![Three phone screens: the three ways to add something, the guide to photographing a garment, and naming a leather jacket photographed on a shop rail](docs/assets/phone.png)
+
+The phone does the thing a browser can't: you are standing in the shop with the
+garment in your hands. Photograph it, say what it is, hang it. The third screen
+is a real jacket on a real rail.
+
+### Letting a phone in
+
+![The pairing screen in the side panel, showing six characters, a QR code, and the phones already connected](docs/assets/pairing.png)
+
+Six characters, typed once. The QR is for a phone that doesn't have the app yet.
 
 ---
 
@@ -116,11 +177,6 @@ extension into `extension/dist/`, then watches it for changes.
 4. Choose the **`extension/dist`** folder, not `extension/`
 5. Pin Hanger to the toolbar
 
-<!-- SCREENSHOT: load-unpacked.png. The chrome://extensions page with the Hanger
-     card loaded, so a judge can confirm they're in the right place. -->
-
-![Loading the unpacked extension](docs/assets/load-unpacked.png)
-
 On a fresh copy there is **no sign-in and no setup**. The panel and the server
 are running on the same machine, and that is proof enough of who you are. You go
 straight to the product.
@@ -150,10 +206,7 @@ for, because three garments really do produce a figure wearing three garments.
 And it means nobody can mistake a sample for a real try-on. Every sample result
 carries a caption saying *"Sample result, no API credits used"*.
 
-<!-- SCREENSHOT: mock-drawing.png. A three-garment sample composite, so a judge
-     can see what sample mode looks like next to the real thing. -->
-
-![A sample result: the drawn figure wearing three garments](docs/assets/mock-drawing.png)
+The screenshots above are all live results, not samples.
 
 ### Path B: live, with a YouCam key
 
@@ -325,10 +378,7 @@ best one already picked: *"Which photo shows this best?"* There is no special
 handling for individual shops. It reads the page's own product information first,
 and falls back to reading the page itself, everywhere.
 
-<!-- SCREENSHOT: image-strip.png. The "which photo shows this best?" row, with
-     the worn shot already picked. A good detail to show. -->
-
-![Choosing which product photo to use](docs/assets/image-strip.png)
+You can see that row of photos in the try-on screenshot above.
 
 ---
 
@@ -358,11 +408,6 @@ things a browser extension can't:
 3. **You're showing someone.** The phone's own share menu sends the outfit video
    to WhatsApp, Instagram or Messages in two taps. On a laptop that's a download
    and a drag.
-
-<!-- SCREENSHOT: three phone screenshots side by side. See docs/ASSETS.md.
-     Portrait, about 400px wide each, ideally in a phone frame. -->
-
-![The phone app](docs/assets/phone.png)
 
 ```bash
 npm run dev:phone
@@ -394,11 +439,6 @@ it can already prove who it is just by being there. A phone is a different
 machine, and being on your Wi-Fi is not the same thing as owning the wardrobe.
 The full reasoning is written at the top of
 [server/src/auth.ts](server/src/auth.ts).
-
-<!-- SCREENSHOT: pairing.png. The connect screen with the six characters and the
-     QR code. Blur the code or regenerate it before publishing. -->
-
-![Connecting a phone](docs/assets/pairing.png)
 
 Two things to know. The phone has to be on the **same Wi-Fi** as the laptop with
 the server running, which is the only real failure this app has, and the error
@@ -433,12 +473,8 @@ picked yet, and two washes behind them. Three choices ship:
 It lives on the profile screen rather than in the header. A control in the header
 reads as something you *use*, and this is something you *set once*. It only
 appears once you've added a photo, so it never competes with the single real
-decision in onboarding.
-
-<!-- SCREENSHOT: accents.png. The same screen in all three colours, side by side.
-     A strong signal that this is a real product. -->
-
-![The three accent colours](docs/assets/accents.png)
+decision in onboarding. The screenshots above show two of the three: the wardrobe
+and the phone in blue, the try-on panel in pink.
 
 ### The mark
 
@@ -449,12 +485,8 @@ updates all of them, rather than leaving one stale copy somewhere.
 
 That button on a shop page is the only place Hanger appears on somebody else's
 surface, so it wears the real mark rather than an impression of it. It costs
-1.4 kB, and it's worth it.
-
-<!-- SCREENSHOT: badge.png. Close crop of the "Try this on" button on a real
-     product page. Small, about 600px wide. -->
-
-![The button on a shop's page](docs/assets/badge.png)
+1.4 kB, and it's worth it. You can see it sitting at the bottom right of every
+shop page in the screenshots above.
 
 ### The writing
 
