@@ -2,9 +2,14 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Theme} from '@astryxdesign/core/theme';
 import {butterTheme} from '@hanger/shared/theme';
+import {applyStoredAccent} from '@hanger/shared/theme/accents';
 import {App} from './App';
 import {AuthProvider, RequireSignIn} from './auth';
 import './styles.css';
+
+// Before the first paint: an accent applied after mount is a visible flash of
+// blue on every load for anyone who chose otherwise.
+applyStoredAccent();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root');

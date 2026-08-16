@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Theme} from '@astryxdesign/core/theme';
 import {butterTheme} from '@hanger/shared/theme';
+import {applyStoredAccent} from '@hanger/shared/theme/accents';
 import {App} from './App';
 import {AuthProvider} from './auth';
 import {applyServerUrl} from './server';
@@ -12,6 +13,10 @@ import './styles.css';
 // server must already know where the server is, and who it is.
 applyServerUrl();
 applyToken();
+
+// And which colour it is, before the first paint — an accent applied after
+// mount is a visible flash of blue for anyone who chose otherwise.
+applyStoredAccent();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root');

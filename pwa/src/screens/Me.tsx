@@ -18,6 +18,7 @@ import {
 } from '@hanger/shared/api';
 import {checkPersonPhoto} from '@hanger/shared/imageChecks';
 import {PoseGuide} from '@hanger/shared/guides';
+import {AccentPicker} from '@hanger/shared/theme/AccentPicker';
 import type {Health, Person} from '@hanger/shared/types';
 import {ErrorNote} from '../components/ErrorNote';
 import {PhotoPick} from '../components/PhotoPick';
@@ -60,6 +61,10 @@ export function Me({
       <Heading level={2}>You</Heading>
 
       <PhotoCard person={person} onPersonChanged={onPersonChanged} />
+
+      <Card padding={3}>
+        <AccentPicker />
+      </Card>
 
       <ServerCard />
 

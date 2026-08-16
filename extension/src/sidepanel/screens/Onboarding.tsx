@@ -10,6 +10,7 @@ import {Spinner} from '@astryxdesign/core/Spinner';
 import {api, mediaUrl} from '@hanger/shared/api';
 import {checkPersonPhoto, normalisePhoto} from '@hanger/shared/imageChecks';
 import {PoseGuide} from '@hanger/shared/guides';
+import {AccentPicker} from '@hanger/shared/theme/AccentPicker';
 import {CameraCapture} from '../components/CameraCapture';
 import {ErrorNote} from '../components/ErrorNote';
 
@@ -155,6 +156,16 @@ export function Onboarding({
       <Card variant="muted">
         <PoseGuide />
       </Card>
+
+      {/* Only once there is a photo — this screen is then reached from your own
+          picture in the header, which makes it the profile. On the way in for
+          the first time it would be a decision competing with the only one that
+          matters. */}
+      {existingPhotoUrl && (
+        <Card variant="muted">
+          <AccentPicker />
+        </Card>
+      )}
 
       {busy ? (
         <Card>

@@ -13,6 +13,8 @@
     "./text": "./src/text.ts",
     "./product": "./src/product.ts",
     "./theme": "./src/theme/butterTheme.ts",
+    "./theme/accents": "./src/theme/accents.ts",
+    "./theme/AccentPicker": "./src/theme/AccentPicker.tsx",
     "./illustrations": "./src/illustrations/index.ts",
     "./logo": "./src/logo/mark.ts",
     "./scripts/icon.mjs": "./scripts/icon.mjs"

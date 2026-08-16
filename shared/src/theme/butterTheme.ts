@@ -74,10 +74,18 @@ export const butterTheme = defineTheme({
 
   tokens: {
     // =========================================================================
-    // Core semantic — accent is the exact brand #225BFF
+    // Core semantic
+    //
+    // The accent is read through --brand-accent rather than written as a hex
+    // code, so one override on <html> repaints every use of it — see
+    // accents.ts, which is where the blue/pink/mono values live and why there
+    // are four strengths rather than one. Those custom properties cannot live
+    // in this object (`tokens` is typed to the known token names), so each
+    // reference below carries butter's own blue as its fallback: with no
+    // accent applied the theme is exactly what it always was.
     // =========================================================================
-    '--color-accent': ['#225BFF', '#FDEE8C'],
-    '--color-accent-muted': ['#225BFF33', '#FDEE8C40'],
+    '--color-accent': 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
+    '--color-accent-muted': 'var(--brand-accent-muted, light-dark(#225BFF33, #FDEE8C40))',
     '--color-neutral': ['#1d1c110F', '#f3f2e21A'],
     '--color-background-surface': ['#FFFFFF', '#2E2117'],
     '--color-background-body': ['#FDFBE4', '#261A13'],
@@ -90,7 +98,7 @@ export const butterTheme = defineTheme({
     '--color-text-primary': ['#1d1c11', '#f3f2e2'],
     '--color-text-secondary': ['#605f52', '#adac9e'],
     '--color-text-disabled': ['#adac9e', '#605f52'],
-    '--color-text-accent': ['#225BFF', '#FDEE8C'],
+    '--color-text-accent': 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
     '--color-on-dark': '#ffffff',
     '--color-on-light': '#1d1c11',
     '--color-on-accent': ['#ffffff', '#1d1c11'],
@@ -100,7 +108,7 @@ export const butterTheme = defineTheme({
     '--color-on-warning': ['#ffeec3', '#3b2200'],
 
     // Icon
-    '--color-icon-accent': ['#225BFF', '#FDEE8C'],
+    '--color-icon-accent': 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
     '--color-icon-primary': ['#1d1c11', '#f3f2e2'],
     '--color-icon-secondary': ['#605f52', '#adac9e'],
     '--color-icon-disabled': ['#adac9e', '#605f52'],
@@ -235,18 +243,18 @@ export const butterTheme = defineTheme({
       // redirect that token (not just `color`) to the brand blue so the text
       // itself turns blue, not only the container.
       base: {
-        color: 'light-dark(#225BFF, #FDEE8C)',
-        '--color-text-primary': 'light-dark(#225BFF, #FDEE8C)',
+        color: 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
+        '--color-text-primary': 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
       },
     },
     'top-nav-item': {
       base: {
-        color: 'light-dark(#6E92FF, #FDEE8CCC)',
+        color: 'var(--brand-accent-soft, light-dark(#6E92FF, #FDEE8CCC))',
       },
       // Selected item: full brand blue, no pill background — rely on weight +
       // color for emphasis. Hover/active keep the neutral overlay.
       selected: {
-        color: 'light-dark(#225BFF, #FDEE8C)',
+        color: 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
         backgroundColor: 'transparent',
         ':hover': {
           backgroundColor: 'var(--color-overlay-hover)',
@@ -264,20 +272,27 @@ export const butterTheme = defineTheme({
         paddingBlock: 'var(--spacing-3)',
         paddingInline: 'var(--spacing-4)',
       },
-      // Secondary: blue outline + label in light, butter yellow in dark.
+      // Secondary: accent outline + label in light, butter yellow in dark.
+      //
+      // `color` alone is not enough, for the reason top-nav-heading above
+      // records: the label is an inner span that reads --color-text-primary,
+      // and that token wins over the button's own colour. Redirect the token
+      // as well or the outline follows the accent while the words don't.
       'variant:secondary': {
         backgroundColor: 'transparent',
         borderWidth: '1.5px',
         borderStyle: 'solid',
-        borderColor: 'light-dark(#225BFF, #FDEE8C)',
-        color: 'light-dark(#225BFF, #FDEE8C)',
+        borderColor: 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
+        color: 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
+        '--color-text-primary': 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
         ':hover': {
-          backgroundColor: 'light-dark(#225BFF14, #FDEE8C14)',
+          backgroundColor: 'var(--brand-accent-wash, light-dark(#225BFF14, #FDEE8C14))',
         },
       },
       // Ghost: same accent color as secondary, no background.
       'variant:ghost': {
-        color: 'light-dark(#225BFF, #FDEE8C)',
+        color: 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
+        '--color-text-primary': 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
       },
       'variant:destructive': {
         backgroundColor: 'light-dark(#ffdad3, #f4b8ae)',
@@ -302,7 +317,7 @@ export const butterTheme = defineTheme({
       },
       'variant:neutral': {
         backgroundColor: '#ffee7b',
-        color: '#225BFF',
+        color: 'var(--brand-accent, light-dark(#225BFF, #FDEE8C))',
       },
       'variant:success': {
         backgroundColor: '#91D143',
