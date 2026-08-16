@@ -1,30 +1,99 @@
-# Hanger
+<div align="center">
 
-Try on any garment from any shop, keep it in one cross-retailer wardrobe, and
-combine pieces from different shops into a single outfit image.
+<img src="shared/assets/logo/hanger-mark.svg" alt="Hanger" width="150">
+
+# Hanger
 
 **Your wardrobe, not their catalogue.**
 
-Built for the YouCam API Skin AI & Apparel VTO Hackathon (Apparel Virtual
-Try-On track). The full specification lives in [AGENTS.md](AGENTS.md); this
-file is how to run it.
+Try on any garment from any shop, keep everything you find in one place, and
+combine pieces from different shops into a single outfit image.
+
+Built for the **YouCam API Skin AI & Apparel VTO Hackathon**, Apparel Virtual
+Try-On track.
+
+<!-- SCREENSHOT: hero.png. The side panel open beside a real product page,
+     showing a try-on result. Landscape, about 1600px wide. See docs/ASSETS.md. -->
+
+![Hanger, with the side panel open on a shop's product page](docs/assets/hero.png)
+
+</div>
 
 ---
 
-## What it does
+## Contents
 
-1. **Try on** — one saved photo, then any garment on any shop, in place.
-2. **Your Hanger** — keep garments from anywhere in one place.
-3. **Outfits** — a top from one shop, trousers from another, shoes from a third,
-   composed into one image with a per-item buy list and a total.
-4. **Alternatives** — reverse-image search for the same garment elsewhere,
-   cheapest first, and try those on too.
+- [The problem](#the-problem)
+- [What Hanger is](#what-hanger-is)
+- [**For judges: testing it**](#for-judges-testing-it) (start here)
+- [How it works](#how-it-works)
+- [Two apps, one wardrobe](#two-apps-one-wardrobe)
+- [Design](#design)
+- [What has run live](#what-has-run-live)
+- [Known gaps](#known-gaps)
+- [Repo layout](#repo-layout)
+- [Development](#development)
+- [How this maps to the judging criteria](#how-this-maps-to-the-judging-criteria)
 
 ---
 
-## Setup
+## The problem
 
-Requires **Node 20+** and Chrome 114+.
+Online clothing returns run between 25% and 40%, and the reason is almost always
+the same one. The customer couldn't tell how it would actually look on them. So
+they buy two sizes, or two colours, and send one back. The shop pays for the
+logistics, the customer waits, and the planet pays for the freight.
+
+Virtual try-on exists to fix this, and it does fix half of it. The trouble is
+that the half it fixes was never the hard part. **Every try-on that exists today
+lives inside one shop's own website**, which means it can only ever show you
+*their* clothes.
+
+That limit isn't a technical one. It's a commercial one. No retailer has any
+reason to show you how their jacket looks over somebody else's trousers, so
+nobody has built it. But that is exactly the question a person is actually
+asking when they shop:
+
+> *Does this go with what I already have, and is there a cheaper one?*
+
+**Hanger answers that question.** It sits above every shop rather than inside any
+one of them.
+
+---
+
+## What Hanger is
+
+A Chrome extension, a phone app, and one small server that both of them share.
+Four things it does:
+
+<!-- SCREENSHOT: four screenshots, one per row below. Each about 800px wide and
+     portrait, since the panel is narrow. See docs/ASSETS.md. -->
+
+|  | | |
+|---|---|---|
+| **1. Try on** | One saved photo, then any garment on any shop, without leaving the page. No account with the retailer, no uploading your photo again on every site. | ![Try-on](docs/assets/tryon.png) |
+| **2. Your Hanger** | Keep a garment from anywhere in one place. A Uniqlo tee and a Zara jacket sit next to each other, each with its own price and its own shop. | ![Your Hanger](docs/assets/hanger.png) |
+| **3. Outfits** | A top from one shop, trousers from another, shoes from a third, all composed into **one image**, with a shopping list and a total. | ![Outfit](docs/assets/outfit.png) |
+| **4. Alternatives** | Search for the same garment elsewhere by its picture, cheapest first, and try those on too. | ![Alternatives](docs/assets/alternatives.png) |
+
+The verb is **"Hang it"**, never "save" or "add to wishlist". The collection is
+**"Your Hanger"**. That vocabulary is deliberate and it stays consistent
+everywhere in the product.
+
+### What makes it different, in one sentence
+
+Point three is the one that doesn't exist anywhere else. **A single image of you
+wearing clothes that are for sale in three different shops** is something no
+retailer can build and no retailer wants to.
+
+---
+
+## For judges: testing it
+
+There are two ways to test it. **The first needs no credentials at all** and
+shows the entire product. The second spends real API credits.
+
+### Path A: the full walkthrough, no credentials, about five minutes
 
 ```bash
 git clone <this repo> && cd hanger
@@ -32,385 +101,631 @@ npm install
 npm run dev
 ```
 
-That's the whole setup. **No credentials are needed.** `MOCK_MODE` defaults to
-`true`, so a fresh clone runs end to end on sample data and spends nothing.
+That is the whole setup. Sample mode is on by default, so a fresh copy runs from
+start to finish on sample data and spends nothing. You need **Node 20 or newer**
+and **Chrome 114 or newer**.
 
-`npm run dev` starts two things:
+`npm run dev` starts the server on `http://localhost:8787` and builds the
+extension into `extension/dist/`, then watches it for changes.
 
-- the backend on `http://localhost:8787`
-- a watch build of the extension into `extension/dist/`
+**Load the extension:**
 
-For the phone app instead, `npm run dev:phone` starts the backend and the phone
-app together — see [On your phone](#on-your-phone).
+1. Open `chrome://extensions`
+2. Turn on **Developer mode**, top right
+3. Click **Load unpacked**
+4. Choose the **`extension/dist`** folder, not `extension/`
+5. Pin Hanger to the toolbar
 
-### Load the extension
+<!-- SCREENSHOT: load-unpacked.png. The chrome://extensions page with the Hanger
+     card loaded, so a judge can confirm they're in the right place. -->
 
-1. Open `chrome://extensions`.
-2. Turn on **Developer mode** (top right).
-3. Click **Load unpacked**.
-4. Choose the **`extension/dist`** folder (not `extension/`).
-5. Pin Hanger to the toolbar, then open any shop's product page. A **Try this
-   on** button appears at the bottom right.
+![Loading the unpacked extension](docs/assets/load-unpacked.png)
 
-The extension ID is assigned by Chrome at load time. Reloading after a rebuild
-is the circular-arrow button on the card in `chrome://extensions`.
+On a fresh copy there is **no sign-in and no setup**. The panel and the server
+are running on the same machine, and that is proof enough of who you are. You go
+straight to the product.
 
-If Clerk sign-in is enabled, add `chrome-extension://<that-id>` to the Clerk
-instance's allowed origins. Keep that ID stable once the extension is shared.
+**Then walk through it:**
 
-### Going live
+| # | Do this | You should see |
+|---|---|---|
+| 1 | Open the extension and add a photo of a person. Drag in any full-length photo, or use `server/fixtures/person-sample.svg` | It accepts the photo and never asks again |
+| 2 | Go to any shop's product page. Uniqlo, Zara, H&M, Everlane, anything | A **Try this on** button appears bottom right, carrying the Hanger mark |
+| 3 | Click it | The panel opens with the garment already read off the page: title, price, and a row of the page's photos with the best one already picked |
+| 4 | Try it on | A result, then **Hang it** |
+| 5 | **Go to a completely different shop.** Different website. Hang something from a different category, so trousers if the first was a top | Both garments now sit in Your Hanger, each showing its own shop and its own price |
+| 6 | Open **Outfits** and build one. Put both garments in it | One image of the person wearing both, a shopping list with a line per garment, and a total |
+| 7 | Swap **one** item for a third garment | It rebuilds, and the server log says `CACHE HIT`, because only the part that changed is recalculated |
+| 8 | Open a garment and tap **Alternatives** | Similar items elsewhere, cheapest first, each with a working link to the shop |
+
+**Steps 5 and 6 are the submission.** Everything else is table stakes. That pair
+is the thing that cannot be done inside any shop's own website.
+
+#### About the sample results
+
+Sample results are **drawings, not photographs**. It's a simple figure that gains
+one layer of clothing for each garment you add. This is deliberate, for two
+reasons. It means sample mode genuinely demonstrates the thing the product is
+for, because three garments really do produce a figure wearing three garments.
+And it means nobody can mistake a sample for a real try-on. Every sample result
+carries a caption saying *"Sample result, no API credits used"*.
+
+<!-- SCREENSHOT: mock-drawing.png. A three-garment sample composite, so a judge
+     can see what sample mode looks like next to the real thing. -->
+
+![A sample result: the drawn figure wearing three garments](docs/assets/mock-drawing.png)
+
+### Path B: live, with a YouCam key
 
 Copy `.env.example` to `server/.env` and fill in what you have:
 
-| Variable | Needed for | Where |
+| Setting | Needed for | Where to get it |
 |---|---|---|
-| `YOUCAM_API_KEY` | Real try-on | [yce.perfectcorp.com/api-console](https://yce.perfectcorp.com/api-console/en/) → Account → Redeem Code → API Keys |
+| `YOUCAM_API_KEY` | Real try-on | [yce.perfectcorp.com/api-console](https://yce.perfectcorp.com/api-console/en/), then Account, Redeem Code, API Keys |
 | `SERPAPI_KEY` | Alternatives | [serpapi.com/manage-api-key](https://serpapi.com/manage-api-key) |
-| `CLERK_SECRET_KEY` | Account verification on the server | Clerk dashboard → API keys |
-| `CLERK_PUBLISHABLE_KEY` | Sign-in in the extension | Clerk dashboard → API keys |
-| `MOCK_MODE` | Set `false` to spend real units | — |
-| `UNIT_BUDGET` | Spend cap for the whole server, default 600 | — |
-| `USER_UNIT_CAP` | What one visitor may spend before their results become samples, default 20. `0` removes the limit | — |
-| `MOCK_DELAY_MS` | Mock latency, default 8000 | — |
+| `MOCK_MODE` | Set it to `false` to spend real credits | |
+| `UNIT_BUDGET` | Spending cap for the whole server, 600 by default | |
+| `USER_UNIT_CAP` | What one visitor may spend before their results become samples, 20 by default. `0` removes the limit | |
+| `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` | Accounts, which are optional. Without them everything runs as a single local person | Clerk dashboard, API keys |
+| `SEARCH_COUNTRY` | Forces one country for the alternatives search. Left blank, each garment's own currency decides | |
+| `MOCK_DELAY_MS` | How slow sample results pretend to be, 8000 by default | |
 
-Without `YOUCAM_API_KEY` the server stays in mock mode even if `MOCK_MODE=false`,
-rather than failing every request with an auth error.
+Restart the server after editing that file.
 
-With both Clerk keys present, the extension shows sign-in before opening the
-hanger and sends a fresh session token with every API request. The exit icon in
-the panel header signs out only that extension session. With no Clerk keys, the
-credential-free local-user mode is unchanged.
+Without a `YOUCAM_API_KEY` the server **stays in sample mode even if you set
+`MOCK_MODE=false`**, rather than failing every request with a login error.
 
-First-time account creation opens Clerk's hosted sign-up page in a normal tab.
-This keeps CAPTCHA and other browser security checks out of the MV3 side panel;
-after creating the account, return to the panel and sign in there.
+The same eight steps apply. A live three-garment outfit is three API calls one
+after another, so expect it to take a minute or two.
 
----
+### If you only have 60 seconds
 
-## Architecture
+Run Path A and look at one screen: **an outfit built from two different shops**.
+One image, two shops, two prices, one total. That is the whole argument.
 
-```
-Chrome                                  localhost:8787
-┌───────────────────────────┐           ┌────────────────────────────────┐
-│ content script            │           │ Hono + SQLite + local storage  │
-│  · PDP detection          │           │                                │
-│  · scrape + rank photos   │           │  /person   /garments  /tryon   │
-│  · fetch image BYTES ─────┼──bytes───▶│  /outfits  /alternatives       │
-│    from inside the page   │           │                                │
-├───────────────────────────┤           │   youcam/client.ts ────────────┼──▶ YouCam
-│ service worker            │           │   alternatives.ts  ────────────┼──▶ SerpApi
-│  · opens the side panel   │           │   cache.ts · budget.ts         │
-├───────────────────────────┤           │                                │
-│ side panel (React)        │◀──JSON────│  every result downloaded into  │
-│  · butter theme (Astryx)  │  /media/  │  ./storage and served by us    │
-└───────────────────────────┘           └────────────────────────────────┘
-```
+### Checking the claims
 
-Four decisions shape most of the code:
+Four checks, one command each.
 
-**The API key never reaches the browser.** Every YouCam and SerpApi call goes
-through the backend. An unpacked extension is a zip file anyone can read.
-
-**Retailer image URLs are never handed to the try-on API.** Many retail CDNs
-403 an anonymous fetch, which the API reports as `error_download_image`. Instead
-the content script fetches the bytes *inside the page*, where the cookies and
-referrer are the ones the CDN expects, posts them to the backend, and the
-backend uploads via the File API and passes `ref_file_id`. This is the only
-approach that generalises across shops.
-
-**Outfits are a chain, cached by prefix.** `cloth-v3` fits one garment at a
-time, so each result is uploaded and fed back in as the next source, always
-starting from the original photo. Steps are cached on the whole prefix that
-produced them, so swapping only the shoes in a three-piece outfit costs one
-call instead of three.
-
-**Every result is downloaded immediately.** YouCam results land in a 30-day
-bucket behind signed URLs. Storing the URL would leave a wardrobe full of dead
-images, so the bytes are pulled into `./storage` the moment a task succeeds and
-the panel only ever sees a `/media/` URL.
-
-### Layout
-
-```
-server/
-  src/
-    index.ts          Hono app, CORS for chrome-extension://* and the LAN
-    auth.ts           one seam: whose wardrobe is this request?
-    users.ts          the user table; every row of clothing has an owner
-    media.ts          signed, expiring image links (an <img> sends no headers)
-    pairing.ts        pairing codes (memory) and device tokens (SQLite)
-    env.ts db.ts      zod-validated env; migrations run on boot
-    storage.ts        local disk, served at /media/:name
-    images.ts         header-only dimension probe + §5.4 validation
-    cache.ts          content-hash cache, chain prefixes
-    budget.ts         unit spend guard
-    mock.ts           MOCK_MODE, and mock/figure.ts draws the sample results
-    alternatives.ts   SerpApi Google Lens + filtering
-    youcam/
-      client.ts       file upload, task create, poll, download
-      engine.ts       the one seam between mock and live
-      tryon.ts        single garment
-      chain.ts        multi-garment composition
-      errors.ts       error code → human sentence
-    routes/           person, garments, tryon, outfits, alternatives, pairing, dev
-  fixtures/           sample data — a fresh clone runs on these
-extension/
-  src/
-    content/          detection, scraping, image ranking, same-origin fetch
-    background/       service worker
-    sidepanel/        React app, screens and components
-  scripts/pages/      saved product pages from real shops, for the scraper test
-shared/               one copy of whatever more than one app needs
-  src/
-    types.ts          the wire contract — server, panel and phone
-    api.ts            typed client for the backend, with a settable base URL
-    format.ts         prices
-    theme/            the Astryx butter theme
-  assets/logo/        the hanger mark, one drawing every icon comes from
-  scripts/icon.mjs    that mark, rasterised to PNG
-pwa/                  the phone app — see PWA.md
-  src/
-    App.tsx           header, one scrolling region, bottom tab bar
-    server.ts         works out which machine the server is on
-    device.ts         this phone's pairing token
-    screens/          Hanger, Outfits, OutfitDetail, Me, AddSheet, Pair
-    components/       GarmentCard, Sheet, TabBar, FilterChip, ErrorNote, Later
-```
-
-### About the sample data
-
-Mock results are **drawings, not photographs** — an SVG figure that gains one
-garment layer per chain step, so mock mode genuinely demonstrates composition
-(three steps really do produce an image wearing three garments) and nobody can
-mistake a fixture for a real try-on. Every mock result carries a "Sample
-result — no API credits used" caption.
-
----
-
-## On your phone
-
-There is a second app in `pwa/`: the same hanger, on a phone. It talks to the
-same server and the same database, so anything kept from the side panel is
-already there. [PWA.md](PWA.md) is its specification and build order.
-
-It shows Your Hanger, your outfits and their buy lists. It photographs: your own
-photo, and any piece you own or find on a shop floor — camera or photo roll,
-straight onto the hanger. It tries things on, builds an outfit and makes the
-video. And it sends what you're looking at — the mp4, the outfit still, or you
-in the one thing you just tried on — to WhatsApp, Instagram or Messages through
-the phone's own share sheet, which is the one thing the side panel cannot do at
-all.
-
-Things get *in* from other apps too. On Android, Hanger is a share target:
-screenshot something in Instagram, tap Share, tap Hanger, and it lands on the
-"what is it?" screen. Share a shop link from anywhere and the server reads the
-page the extension would have read. iOS allows neither — Apple's share sheet is
-closed to web apps — so the same two routes sit on the Add sheet as "From your
-photos" and "Paste a link", which is one extra tap and the only way in on an
-iPhone.
+**The API key never reaches the browser.** An unpacked extension is a zip file
+anyone can open and read, so every call to YouCam and SerpApi goes through our
+own server instead:
 
 ```bash
-npm run dev:phone
+grep -ri "youcam_api_key\|Bearer " extension/dist/ | grep -v ".map"
 ```
 
-That starts the backend and serves the app on `http://localhost:5174`, bound to
-every network interface. Two ways to look at it:
+Expect nothing back.
 
-- **On the laptop** — open `http://localhost:5174` and make the window
-  phone-shaped, or use the browser's device toolbar.
-- **On your actual phone** — same Wi-Fi as the laptop, then open
-  `http://<your-laptop's-LAN-IP>:5174`. The server prints the address it can be
-  reached on at startup (`[hanger] phone handoff: reachable on …`) — same host,
-  port 5174. Safari or Chrome's menu will offer to add it to your home screen,
-  where it opens without browser chrome.
+**Every failure shows a human sentence and something to do next.** In sample
+mode you can force any of them:
 
-The app finds the server by itself: whatever host served the page, on port 8787.
-So the LAN address works with nothing to configure. If that guess is ever wrong,
-**You → Where the server is** takes an address and remembers it.
+```bash
+curl -s localhost:8787/dev/errors | python3 -m json.tool
+```
 
-### Pairing
+```bash
+curl -s -X POST localhost:8787/dev/force-error -H 'Content-Type: application/json' -d '{"code":"error_pose"}'
+```
 
-A phone has to be let in once. On the laptop, tap the **phone icon** in the side
-panel's header: it shows six characters. Type those into the phone, and it stays
-paired until you remove it. The same sheet lists every phone that can see your
-hanger, with a Remove next to each.
+The next try-on then fails that way. Send `{"code":null}` to switch it off.
 
-There's a QR code on that sheet too, for a phone that doesn't have the app yet —
-it opens the app already carrying the code.
+**Spending is capped and reported.**
 
-Why any of this exists: the side panel runs on the same machine as the server,
-so reaching `localhost` is itself proof of who it is, and the panel carries no
-credential. A phone is a different machine, and being on your Wi-Fi is not the
-same claim as owning the wardrobe. The full reasoning is at the top of
-[server/src/auth.ts](server/src/auth.ts).
+```bash
+curl -s localhost:8787/health | python3 -m json.tool
+```
 
-Viewing the phone app on the laptop itself needs no pairing, for the same
-reason — it's on loopback.
+That reports credits spent against the budget. At 80% of the budget the server
+warns loudly. At 100% it refuses new live calls rather than quietly draining the
+account.
 
-Two things to know:
-
-- The phone must be on the **same Wi-Fi** as the laptop, and the laptop must be
-  running the server. That's the only failure this app really has, and the error
-  screen says so.
-- The camera needs **HTTPS**, which plain LAN http isn't. Nothing here uses the
-  camera yet, so it doesn't bite until Phase 4.
-
----
-
-## Retailers the scraper is tested against
-
-There are no per-retailer scrapers. The same code — structured data first, DOM
-fallback second — runs everywhere. It is checked against pages saved from real
-shops:
+**The page reader is tested against real shop pages, not made-up ones.**
 
 ```bash
 npm run test:scrape --workspace extension
 ```
 
-| Shop | Platform | What the saved page exercises |
-|---|---|---|
-| Uniqlo (t-shirt + trousers) | Custom SPA | og-only metadata, URL aspect-ratio hints, lower-body category |
-| Nike | Custom | JSON-LD Product as the *only* recognisable signal |
-| Gap | Next.js SPA | An empty app shell — nothing extractable outside a browser |
-| Everlane | Shopify | JSON-LD + OpenGraph + buy control |
-| Passenger | Shopify | Full structured data |
-| Percival (t-shirt + trousers) | Shopify | Lower-body on-model requirement |
-| Allbirds | Shopify | Shoes category inference |
+Nine pages saved from real shops. See
+[Shops the page reader is tested against](#shops-the-page-reader-is-tested-against).
 
-The server reads the same nine pages, without a browser, for the phone's "paste
-a link" route:
+### The phone app
+
+```bash
+npm run dev:phone
+```
+
+That starts the server plus the phone app on `http://localhost:5174`. A judge can
+look at it in a phone-shaped browser window without connecting a real phone. See
+[On your phone](#on-your-phone).
+
+---
+
+## How it works
+
+```
+Chrome                                  localhost:8787
+┌───────────────────────────┐           ┌────────────────────────────────┐
+│ in the shop's page        │           │ Hono + SQLite + local storage  │
+│  · spots a product page   │           │                                │
+│  · reads it, ranks photos │           │  /person   /garments  /tryon   │
+│  · fetches the image ─────┼──bytes───▶│  /outfits  /alternatives       │
+│    from inside the page   │           │                                │
+├───────────────────────────┤           │   youcam/client.ts ────────────┼──▶ YouCam
+│ background worker         │           │   alternatives.ts  ────────────┼──▶ SerpApi
+│  · opens the side panel   │           │   cache.ts · budget.ts         │
+├───────────────────────────┤           │                                │
+│ side panel (React)        │◀──JSON────│  every result saved to our own │
+│  · butter theme (Astryx)  │  /media/  │  storage and served by us      │
+└───────────────────────────┘           └────────────────────────────────┘
+         ▲
+         │  same server, same wardrobe
+         ▼
+┌───────────────────────────┐
+│ phone app                 │
+│  · camera, sharing        │
+└───────────────────────────┘
+```
+
+**Built with:** TypeScript throughout. Hono and SQLite on the server, React 19
+and Vite in both apps, Tailwind, the Astryx *butter* design system, and Clerk for
+optional accounts.
+
+Four decisions shape most of the code. Each one came out of reading the API
+documentation before writing anything, rather than out of fixing something later.
+
+### 1. The API key never reaches the browser
+
+The YouCam API is designed to be called from a server, not from a web page. And a
+Chrome extension is a zip file anyone can unpack and read. So every call to
+YouCam and SerpApi goes through our own server. The extension never sees a key.
+
+### 2. Shop image links are never handed to the try-on API
+
+The API can fetch an image for you if you give it a link, but only if that link
+is publicly downloadable by Perfect Corp's servers. Plenty of shops check who is
+asking and refuse anyone who isn't a real visitor, which comes back as a download
+failure.
+
+So instead, the code that runs inside the shop's page fetches the image there,
+where the browser looks like an ordinary visitor because it is one. It sends
+those raw bytes to our server, and our server uploads them properly.
+
+This is the only approach that works across shops in general, and it is the most
+important detail in the whole build.
+
+### 3. Outfits are built one garment at a time, and the work is remembered
+
+The try-on API fits one garment per call. So an outfit is built in steps: the
+result of the first garment becomes the starting photo for the second, and so on,
+always beginning from your original photo.
+
+Each step is remembered against **everything that came before it**, not just
+against the garment. So swapping only the shoes in a three-piece outfit costs
+**one** call instead of three, because the top-and-trousers stage has already
+been worked out. The server log says `CACHE HIT tryon <key> (saved ~1 unit)` when
+this happens, which is how you can see it working.
+
+### 4. Every result is saved immediately
+
+Results sit on YouCam's servers for 30 days behind links that expire. Keeping the
+link would leave you with a wardrobe full of dead images, so the image is
+downloaded into our own storage the moment it's ready. The apps only ever see a
+link we serve ourselves.
+
+### One more, about choosing the photo
+
+The API documentation is clear that for trousers and skirts it needs a photo of
+the garment **being worn**, not a flat product shot on a white background. A
+flat-lay of jeans either fails or produces something unusable.
+
+So the code reads **all** the photos on a product page, ranks them by how likely
+each is to show the garment on a person, and shows you the row of them with the
+best one already picked: *"Which photo shows this best?"* There is no special
+handling for individual shops. It reads the page's own product information first,
+and falls back to reading the page itself, everywhere.
+
+<!-- SCREENSHOT: image-strip.png. The "which photo shows this best?" row, with
+     the worn shot already picked. A good detail to show. -->
+
+![Choosing which product photo to use](docs/assets/image-strip.png)
+
+---
+
+## Two apps, one wardrobe
+
+The wardrobe lives on the server. Both apps ask that same server for the same
+things, so anything you hang on the laptop is already on the phone.
+
+### The extension
+
+Where shopping actually happens. It notices product pages, reads them, puts the
+button on them, and opens the panel where you try things on and build outfits.
+
+### On your phone
+
+There is a second app in `pwa/`. The same wardrobe, on a phone. It does three
+things a browser extension can't:
+
+1. **You're standing in a shop.** The garment is in your hands, not on a website.
+   Photograph it and hang it.
+2. **You're in another app.** A screenshot from Instagram, a photo a friend sent
+   on WhatsApp. On Android, Hanger appears in the share menu: screenshot
+   something, tap Share, tap Hanger, and it lands in the app. Share a shop link
+   from anywhere and the server reads the page for you. Apple doesn't allow
+   either of those for web apps, so on an iPhone the same two routes sit on the
+   Add screen as "From your photos" and "Paste a link".
+3. **You're showing someone.** The phone's own share menu sends the outfit video
+   to WhatsApp, Instagram or Messages in two taps. On a laptop that's a download
+   and a drag.
+
+<!-- SCREENSHOT: three phone screenshots side by side. See docs/ASSETS.md.
+     Portrait, about 400px wide each, ideally in a phone frame. -->
+
+![The phone app](docs/assets/phone.png)
+
+```bash
+npm run dev:phone
+```
+
+That serves the app on `http://localhost:5174`. Two ways to look at it:
+
+- **On the laptop.** Open `http://localhost:5174` and make the window
+  phone-shaped, or use the browser's device preview. Nothing to connect, because
+  it's the same machine.
+- **On your actual phone.** Same Wi-Fi as the laptop, then open
+  `http://<your laptop's address>:5174`. The server prints the address it can be
+  reached on when it starts up. Safari or Chrome will offer to add it to your
+  home screen, where it opens without any browser around it.
+
+The app works out where the server is by itself. If that guess is ever wrong,
+**You**, then **Where the server is**, takes an address and remembers it.
+
+#### Connecting a phone
+
+A phone has to be let in once. On the laptop, tap the **phone icon** in the side
+panel's header and it shows six characters. Type those into the phone and it
+stays connected until you remove it. The same screen lists every phone that can
+see your wardrobe, with a Remove next to each, and a QR code for a phone that
+doesn't have the app yet.
+
+Why this exists at all: the side panel runs on the same machine as the server, so
+it can already prove who it is just by being there. A phone is a different
+machine, and being on your Wi-Fi is not the same thing as owning the wardrobe.
+The full reasoning is written at the top of
+[server/src/auth.ts](server/src/auth.ts).
+
+<!-- SCREENSHOT: pairing.png. The connect screen with the six characters and the
+     QR code. Blur the code or regenerate it before publishing. -->
+
+![Connecting a phone](docs/assets/pairing.png)
+
+Two things to know. The phone has to be on the **same Wi-Fi** as the laptop with
+the server running, which is the only real failure this app has, and the error
+screen says exactly that. And the camera needs a secure connection, which a plain
+local network address isn't.
+
+---
+
+## Design
+
+The interface uses the **Astryx butter** design system, a warm and quiet palette
+that stays out of the way of the clothes. The clothes are the only images on
+screen that should be competing for attention.
+
+| Used for | Light | Dark |
+|---|---|---|
+| Page | `#FDFBE4` | `#261A13` |
+| Cards | `#FFFFFF` | `#2E2117` |
+| Text | `#1d1c11` | `#f3f2e2` |
+| Quieter text | `#605f52` | `#adac9e` |
+
+The accent colour is **something you can change**, not a fixed value. It comes in
+four strengths: full for the thing you press, softer for the thing you haven't
+picked yet, and two washes behind them. Three choices ship:
+
+| | Light | Dark | Notes |
+|---|---|---|---|
+| **Blue**, the default | `#225BFF` | `#FDEE8C` | Butter's own |
+| **Pink** | `#D6187C` | `#FFB3DE` | Deep enough to carry white text on top |
+| **Mono** | `#1d1c11` | `#f3f2e2` | Takes the backgrounds neutral too, because ink on a yellow page isn't what anybody means by black and white |
+
+It lives on the profile screen rather than in the header. A control in the header
+reads as something you *use*, and this is something you *set once*. It only
+appears once you've added a photo, so it never competes with the single real
+decision in onboarding.
+
+<!-- SCREENSHOT: accents.png. The same screen in all three colours, side by side.
+     A strong signal that this is a real product. -->
+
+![The three accent colours](docs/assets/accents.png)
+
+### The mark
+
+One drawing, [`shared/assets/logo/hanger-mark.svg`](shared/assets/logo/hanger-mark.svg),
+is the source for every icon in the product: the extension's icons, the phone
+app's home screen icon, and the button that appears on shop pages. Redrawing it
+updates all of them, rather than leaving one stale copy somewhere.
+
+That button on a shop page is the only place Hanger appears on somebody else's
+surface, so it wears the real mark rather than an impression of it. It costs
+1.4 kB, and it's worth it.
+
+<!-- SCREENSHOT: badge.png. Close crop of the "Try this on" button on a real
+     product page. Small, about 600px wide. -->
+
+![The button on a shop's page](docs/assets/badge.png)
+
+### The writing
+
+Plain and short. No exclamation marks, no "Oops!", no emoji in the interface.
+Every failure gets a human sentence *and* something to do next. Never a code,
+never a spinner that ends in nothing.
+
+---
+
+## Shops the page reader is tested against
+
+There is no special code per shop. The same reader runs everywhere, taking the
+page's own product information first and falling back to reading the page itself.
+It's checked against pages saved from real shops:
+
+```bash
+npm run test:scrape --workspace extension
+```
+
+| Shop | Built with | What the saved page tests |
+|---|---|---|
+| Uniqlo (t-shirt and trousers) | Custom | Only social sharing tags to work from, plus lower-body category |
+| Nike | Custom | Structured product data as the only usable signal |
+| Gap | Next.js | An empty shell, with nothing readable outside a browser |
+| Everlane | Shopify | Structured data, sharing tags and a buy button |
+| Passenger | Shopify | Complete product information |
+| Percival (t-shirt and trousers) | Shopify | Needs a worn photo for the trousers |
+| Allbirds | Shopify | Working out that something is a shoe |
+
+The server reads the same nine pages, without a browser, for the phone's "paste a
+link" option:
 
 ```bash
 npm run test:links --workspace server
 ```
 
-Eight of the nine are hangable from the markup alone — right title, right
-category, and the right price wherever the served HTML carries one. The ninth is
-Gap, whose page is an empty app shell; the extension can't read that either, and
-both routes send you to the camera instead. To point it at a live page rather
-than a saved one:
+Eight of the nine can be hung from the page alone, with the right title, the
+right category and the right price wherever the page carries one. The ninth is
+Gap, whose page is an empty shell. The extension can't read that either, and both
+routes send you to the camera instead. To point it at a live page:
 
 ```bash
 npx tsx scripts/read-link.ts https://someshop.com/product/thing
 ```
 
-Two caveats worth stating plainly:
+Two limits worth stating plainly:
 
-- The harness runs under jsdom, which has no layout and no network. Natural
-  image dimensions and corner-pixel sampling — two inputs to the §9.3 ranking —
-  score zero there. Keyword, structured-data and URL signals are fully
-  exercised; the size-based ones only work in a real browser.
-- Gap and Uniqlo build their product pages client-side, so their *saved* HTML
-  carries little. Their fixtures assert only what the served HTML really
-  contains, and say so in the output.
+- The test runs without a real browser, so it can't measure how big the images
+  actually are or sample their colours. Those are two of the signals used to pick
+  the best photo. Everything else is fully tested, but the size-based parts only
+  work in a real browser.
+- Gap and Uniqlo build their product pages in the browser, so their saved pages
+  carry very little. Their tests only check what the page really contains, and
+  say so in the output.
+
+---
+
+## What has run live
+
+Written down because it was wrong here for a while, and an out-of-date list of
+missing pieces is worse than none. It talks people out of things that already
+work.
+
+With a real `YOUCAM_API_KEY` and sample mode off, the core of this has been run
+against the live APIs, not just against sample data:
+
+- **Try-on, and building an outfit from several garments.** Real API calls, with
+  results saved to our own storage as the real images they are. Sample results
+  are drawings, so a photograph in the results is by definition something YouCam
+  made.
+- **Across shops, which is the whole claim.** Garments saved from bash.com,
+  superbalist.com and zara.com, composed into three-piece outfits of a top,
+  trousers and shoes in one image.
+- **Video.** Real calls, finished videos served from our own storage.
+- **Alternatives.** Real search results: real shops, real product links, real
+  prices.
+- **Two accounts on one server**, each with their own photo and their own
+  wardrobe.
+- **Reading a shop link on the server**, against live pages from Uniqlo,
+  Allbirds, Gap, Superbalist and H&M, on top of the nine saved ones. Two of those
+  five taught us something. Allbirds hands back its own logo instead of the
+  product on an out-of-date link, and H&M refuses a request from a server
+  outright. Both are handled, the second by saying so and offering the camera.
+
+`GET /health` reports what has been spent. Those numbers are the record. Nothing
+in this section is guessed from reading the code.
+
+---
+
+## Known gaps
+
+Stated plainly, because a submission that hides them is worse than one that
+doesn't.
+
+- **Photo Enhance isn't wired up for live mode.** Rescuing a too-small
+  alternative thumbnail needs the exact API path confirmed first, so rather than
+  guess at it, the code returns nothing and the app says "open the product page
+  to try this on". Sample mode does exercise the path.
+- **Alternative prices can carry the wrong currency.** A result from a foreign
+  shop whose price doesn't say what currency it's in gets stamped with the local
+  one. An adidas Oman listing came back as 18 rand. Sorting cheapest first is the
+  entire point of that screen, so a wrong price doesn't just read badly, it sorts
+  straight to the top.
+- **The search results reader was built from the search provider's published
+  example** rather than a live response. It has since been given live responses
+  without a mismatch, and the first response of every run logs its shape, so a
+  future change announces itself rather than quietly returning an empty list.
+- **A shared screenshot isn't identified, it's asked about.** The plan was to run
+  it through the image search. That search takes a link and fetches the picture
+  itself, and a photo out of somebody's camera roll has no public link to give
+  it. So a shared picture lands on the same "what is it?" screen a photographed
+  one does. Links, which carry their own details, fill themselves in.
+- **Some shops can't be read from a link at all.** Pages built entirely in the
+  browser (Gap) carry nothing useful, and shops with bot protection (H&M) refuse
+  the request. Both end in a sentence and the camera, never a spinner.
+- **It runs on a laptop.** The hosting configuration is written but nothing is
+  deployed, so the phone still needs the laptop switched on and on the same
+  Wi-Fi.
+- **React 19 and Tailwind 4**, where the plan said older versions of both. The
+  butter design system requires the newer ones, and the design system was the
+  fixed requirement, so the versions gave way.
+- **Hats, scarves and the editorial bag shot aren't built.** The bag API turned
+  out not to fit the way outfits are built here. It takes a head-and-shoulders
+  selfie and regenerates a whole styled scene, rather than adding a bag to an
+  existing image, so it was never going to be another layer in an outfit. That's
+  written up in [AGENTS.md](AGENTS.md) rather than discovered late.
+
+---
+
+## Repo layout
+
+```
+server/
+  src/
+    index.ts          the app, and who is allowed to talk to it
+    auth.ts           one place that answers: whose wardrobe is this?
+    users.ts          the people; every garment belongs to one
+    media.ts          signed, expiring image links
+    pairing.ts        the six-character codes, and connected phones
+    env.ts db.ts      settings, checked on start; database upgrades
+    storage.ts        the images we keep, served at /media/:name
+    images.ts         checking a photo is usable before spending anything
+    cache.ts          remembering work already done
+    budget.ts         the spending limit
+    mock.ts           sample mode, and mock/figure.ts draws the samples
+    alternatives.ts   the image search, and filtering what comes back
+    youcam/
+      client.ts       uploading, starting a job, waiting, downloading
+      engine.ts       the one switch between sample and real
+      tryon.ts        a single garment
+      chain.ts        several garments, one image
+      errors.ts       turning a failure into a sentence
+    routes/           person, garments, tryon, outfits, alternatives,
+                      pairing, handoff, links, dev
+  fixtures/           sample data; a fresh copy runs on these
+extension/
+  src/
+    content/          noticing product pages, reading them, ranking photos,
+                      fetching the image from inside the page
+    background/       opens the side panel
+    sidepanel/        the app itself: Onboarding, TryOn, Hanger, OutfitBuilder,
+                      Outfits, Alternatives, AddOwned
+  scripts/pages/      product pages saved from real shops, for the tests
+shared/               one copy of anything more than one app needs
+  src/
+    types.ts          the shapes the server and both apps agree on
+    api.ts            how the apps talk to the server
+    format.ts         prices
+    theme/            the butter theme, the three accents, the icons
+    illustrations/    the drawings that show how to photograph a garment
+    logo/mark.ts      the mark as data, for the shop-page button
+  assets/logo/        the hanger mark, the one drawing every icon comes from
+pwa/                  the phone app, see PWA.md
+  src/
+    App.tsx           header, one scrolling area, tabs at the bottom
+    server.ts         works out which machine the server is on
+    device.ts         this phone's connection
+    screens/          Hanger, Outfits, OutfitDetail, Me, AddSheet, AddGarment,
+                      AddLink, BuildOutfit, TryOn, Pair
+    components/       GarmentCard, Sheet, TabBar, FilterChip, ErrorNote,
+                      PhotoPick, CategoryPick, ShareCard
+```
+
+### The documents
+
+| File | What it is |
+|---|---|
+| **README.md** | This file. What it is, and how to run and test it |
+| [AGENTS.md](AGENTS.md) | The full build specification: constraints, API details, data model, build order, and what counts as done |
+| [PWA.md](PWA.md) | The phone app's specification and build order |
+| [SUBMISSION.md](SUBMISSION.md) | The hackathon answers and the demo video plan |
+| [docs/ASSETS.md](docs/ASSETS.md) | Which screenshots go where |
 
 ---
 
 ## Development
 
 ```bash
-npm run dev                              # server + extension watch build
-npm run dev:phone                        # server + phone app on :5174
-npm run typecheck                        # every package
-npm run test:scrape --workspace extension  # scraper against saved shop pages
-npm run build --workspace extension      # production extension build
-npm run build:pwa                        # production phone build
+npm run dev                                # server and extension, watching
+npm run dev:phone                          # server and phone app on :5174
+npm run typecheck                          # everything
+npm run test:scrape --workspace extension  # the page reader, against saved pages
+npm run test:links --workspace server      # reading a shop link on the server
+npm run build --workspace extension        # production extension
+npm run build:pwa                          # production phone app
 ```
 
-To preview the side panel as an ordinary web page (handy for design work):
+After a rebuild, reload the extension with the circular arrow on its card in
+`chrome://extensions`. Chrome assigns the extension its ID when you load it. If
+you turn accounts on, add `chrome-extension://<that id>` to the allowed addresses
+in your Clerk settings, and keep that ID stable once the extension is shared.
+
+To look at the side panel as an ordinary web page, which is handy for design
+work:
 
 ```bash
 npx serve -l 5599 extension/dist
 ```
 
-then open `http://localhost:5599/sidepanel.html`. Outside the extension there is
-no scraped product to show, so put a `ScrapedProduct` in
-`sessionStorage['hanger.previewProduct']` to see the try-on screen.
+then open `http://localhost:5599/sidepanel.html`.
 
-### Forcing error states
+### Not spending credits by accident
 
-Every error in the §13 table renders a human sentence and a next action. In
-mock mode you can trigger any of them:
+Built in from the first commit, rather than added later:
 
-```bash
-curl -s localhost:8787/dev/errors | python3 -m json.tool          # list them
-curl -s -X POST localhost:8787/dev/force-error \
-  -H 'Content-Type: application/json' -d '{"code":"error_pose"}'   # arm one
-```
+- Sample mode is on by default, so all the interface work costs nothing.
+- Work that's already been done is remembered, and the log says so.
+- `GET /health` reports what's been spent against the budget.
+- At 80% of the budget the server warns loudly. At 100% it refuses new live calls
+  rather than quietly draining the account.
+- There's a per-visitor limit for a public demo. Past it everything keeps
+  working, the results are just samples, and they say so.
 
-The next try-on then fails with that code. `{"code":null}` disarms it.
+### Hosting
 
-### Credits discipline
+[`render.yaml`](render.yaml) is written. One service, serving both the API and
+the phone app from the same address, so the phone talks to the same place it came
+from and a judge only needs one link. It runs a proper container rather than a
+serverless function, because a try-on can take up to five minutes and serverless
+hosts cut requests off long before that. And it keeps a real disk, because the
+cheap option wipes its storage on every deploy, which would take somebody's whole
+wardrobe with it.
 
-- `MOCK_MODE=true` by default; all UI work happens on fixtures.
-- Cache hits are logged: `CACHE HIT tryon <key> (saved ~1 unit)`.
-- `GET /health` reports units spent against the budget.
-- At 80% of `UNIT_BUDGET` the server warns loudly; at 100% it refuses new live
-  calls rather than silently draining the account.
+Nothing is deployed yet. See [Known gaps](#known-gaps).
 
 ---
 
-## What has run live
+## How this maps to the judging criteria
 
-Written down because it was wrong here for a while, and a stale gap list is
-worse than none: it talks people out of things that already work.
+| Criterion | Where to look |
+|---|---|
+| **Technological Implementation** | Building one image out of several garments, and remembering the work so an edit costs one call instead of three. Fetching product images from inside the shop's own page, which is the only way this works across shops in general. Searching for the same garment elsewhere by its picture. A spending limit that actually stops. One place in the code that decides whose wardrobe a request is for. This is not one API call behind a button. |
+| **Design** | A complete product rather than a demo: onboarding, the wardrobe, the outfit screen, alternatives, real empty and loading and failure states, a second app on the phone, a colour you can change, and one drawing behind every icon. Every failure has a human sentence and something to do next, and you can force each one yourself. |
+| **Potential Impact** | Fewer returns, and an answer to a question no single shop will ever answer: *does this go with what I already have, and is there a cheaper one?* |
+| **Quality of the Idea** | Combining clothes across shops, and finding the same thing cheaper elsewhere. The try-on is what makes it possible. The cross-shop wardrobe is the product. |
 
-With a real `YOUCAM_API_KEY` and `MOCK_MODE=false`, the core loop has been
-exercised against the live APIs, not just against mock mode:
+---
 
-- **Try-on and the outfit chain** — live `cloth-v3` calls, with results
-  downloaded into `./storage` as the real images they are. Mock results are
-  SVG drawings, so a `.jpg` in `tryon.result_path` or `chain_step` is by
-  definition something YouCam made.
-- **Across retailers, which is the whole claim** — garments saved from
-  bash.com, superbalist.com and zara.com, composed into three-piece outfits
-  (top, bottom, shoes) in one image.
-- **Video** — live `image-to-video` calls, finished mp4s served from our own
-  storage.
-- **Alternatives** — live SerpApi Google Lens results: real merchants, real
-  product links, real prices.
-- **Two accounts on one server**, each with their own photo and their own
-  wardrobe.
-- **Reading a link server-side** — live pages from Uniqlo, Allbirds, Gap,
-  Superbalist and H&M, on top of the nine saved fixtures. Two of those five
-  taught us something: Allbirds hands back its own logo as `og:image` on a stale
-  product URL, and H&M refuses a server-side fetch outright with a 403. Both are
-  handled, the second by saying so and offering the camera.
+## Credits and licence
 
-`GET /health` reports what has been spent. The numbers in `spend_log` are the
-audit trail; nothing here is inferred from the code.
+Built by [Tlotliso Morethi](https://github.com/tlotliso) for the YouCam API Skin
+AI & Apparel VTO Hackathon, 2026.
 
-## Known gaps
+- Try-on and video: **YouCam by Perfect Corp**, AI Clothes Virtual Try-On and
+  image-to-video
+- Searching by picture: **SerpApi**
+- Design system: **Astryx butter**
+- Accounts: **Clerk**
 
-- **AI Photo Enhance is stubbed for live mode.** Rescuing an undersized
-  alternative thumbnail needs the real endpoint path verified first, so
-  `enhanceImage()` returns null and the caller says "open the product page to
-  try this on" rather than guessing a URL. Mock mode exercises the code path.
-- **Alternative prices can carry the wrong currency.** A result from a foreign
-  storefront whose price has no explicit currency is stamped with the local one
-  — an adidas Oman listing came back as `18 ZAR`. Cheapest-first sorting is the
-  point of that screen, so a mislabelled price doesn't just read wrong, it
-  sorts to the top.
-- **The SerpApi parser was built from SerpApi's published example response**
-  rather than a live one. It has since been fed live responses without a shape
-  mismatch, and the first response of a run still logs its top-level and
-  per-match keys so a future change announces itself instead of quietly
-  returning an empty list. See the `_provenance` block in
-  `server/fixtures/serpapi-google-lens.json`.
-- **A shared screenshot isn't identified, it's asked about.** The plan was to
-  run it through the Lens integration; that engine takes a URL and fetches the
-  image itself, and a picture out of somebody's camera roll has no public URL to
-  give it. So a shared picture lands on the same "what is it?" screen a
-  photographed one does. Links, which carry their own details, fill themselves
-  in.
-- **Some shops can't be read from a link.** Pages built entirely in the browser
-  (Gap) carry nothing in their served HTML, and shops behind bot protection
-  (H&M) answer a server-side fetch with 403. Both end in a sentence and the
-  camera, never a spinner.
-- **It runs on a laptop.** `render.yaml` is written but nothing is deployed, so
-  the phone still needs the laptop switched on and on the same Wi-Fi, and the
-  extension still points at `localhost:8787`.
-- React 19 and Tailwind v4, where the spec said 18 and (implicitly) v3 — the
-  butter theme's runtime requires React ≥19, and its Tailwind bridge is v4-only.
-  The theme is a fixed requirement, so the versions gave way.
-- Phase 7 (hat/scarf layering, the bag editorial shot) is not built.
+Shop names and product pages appear only incidentally, as the places a person
+would actually be browsing. No affiliation is claimed or implied.
+
+<!-- Add a LICENSE file and name it here. MIT is the usual choice for a
+     hackathon entry. -->
