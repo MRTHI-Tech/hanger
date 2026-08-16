@@ -488,7 +488,7 @@ phone-shaped window. Same wardrobe, on a phone, nothing to connect.
       file
 - [ ] `server/.env` is not committed
 - [ ] `grep -ri "youcam_api_key\|Bearer " extension/dist/` returns nothing
-- [ ] A LICENSE file exists
+- [x] A LICENSE file exists (MIT)
 - [ ] Name, elevator pitch, description, tags, repo link, video link all filled
       in
 - [ ] All four written questions answered, from section 4 above

@@ -759,5 +759,5 @@ AI & Apparel VTO Hackathon, 2026.
 Shop names and product pages appear only incidentally, as the places a person
 would actually be browsing. No affiliation is claimed or implied.
 
-<!-- Add a LICENSE file and name it here. MIT is the usual choice for a
-     hackathon entry. -->
+Released under the [MIT licence](LICENSE). The shop photography in the
+screenshots belongs to the shops it came from and is not covered by it.
