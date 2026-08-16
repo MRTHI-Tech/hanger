@@ -14,6 +14,7 @@
     "./product": "./src/product.ts",
     "./theme": "./src/theme/butterTheme.ts",
     "./illustrations": "./src/illustrations/index.ts",
+    "./logo": "./src/logo/mark.ts",
     "./scripts/icon.mjs": "./scripts/icon.mjs"
   },
   "scripts": {

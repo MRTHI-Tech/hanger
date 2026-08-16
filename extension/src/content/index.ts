@@ -1,3 +1,4 @@
+import {HANGER_MARK_D, HANGER_MARK_INK_VIEW_BOX} from '@hanger/shared/logo';
 import {fetchImageBytes} from './fetchImage';
 import {isProductPage, scrapeProduct} from './scrape';
 
@@ -103,11 +104,18 @@ function injectBadge() {
   badgeHost = host;
 }
 
+/**
+ * The badge wears the real mark, not a sketch of one — it is the only place
+ * Hanger appears on somebody else's page, so it should be the same drawing as
+ * the toolbar icon rather than a lookalike.
+ *
+ * Framed on the mark's ink rather than its canvas: the canvas carries margin
+ * that costs a third of the height at this size, which would leave the mark
+ * looking smaller than the words next to it. 30×18 is the ink's own 1.64:1.
+ */
 function hangerIcon(): string {
-  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M12 8 L3 17 h18 z"/>
-    <path d="M12 8 V6.5"/>
-    <path d="M12 6.5 a2 2 0 1 1 2-2"/>
+  return `<svg width="30" height="18" viewBox="${HANGER_MARK_INK_VIEW_BOX}" fill="currentColor" aria-hidden="true">
+    <path d="${HANGER_MARK_D}" fill-rule="evenodd" clip-rule="evenodd"/>
   </svg>`;
 }
 
